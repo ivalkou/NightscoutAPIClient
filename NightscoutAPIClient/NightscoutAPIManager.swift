@@ -45,9 +45,15 @@ public class NightscoutAPIManager: CGMManager {
     }
 
     private let keychain = KeychainManager()
+    
+    public var service: NightscoutAPIService {
+        didSet {
+            try! keychain.setNightscoutURL(service.ulr, secret: service.secret)
+        }
+    }
 
     public init() {
-
+        service = NightscoutAPIService(keychainManager: keychain)
     }
 
     public convenience required init?(rawState: CGMManager.RawStateValue) {

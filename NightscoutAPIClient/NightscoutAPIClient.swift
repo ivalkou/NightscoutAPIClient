@@ -16,14 +16,14 @@ struct Status: Decodable, Equatable {
 
 final class NightscoutAPIClient {
     let secret: String?
-    let url: String
+    let url: String?
 
     private enum Config {
         static let apiPath = "/api/v1"
         static let retryCount = 5
     }
 
-    init(url: String, secret: String?) {
+    init(url: String?, secret: String?) {
         self.url = url
         self.secret = secret
     }
@@ -31,9 +31,14 @@ final class NightscoutAPIClient {
     enum Error: LocalizedError {
         case statusCode
         case unknownStatus
+        case missingURL
     }
 
     func checkStatus() -> AnyPublisher<Never, Swift.Error> {
+        guard let url = url else {
+            return Fail(error: Error.missingURL).eraseToAnyPublisher()
+        }
+
         var request = URLRequest(url: URL(string: url + Config.apiPath + "/status.json")!)
         request.allowsConstrainedNetworkAccess = false
         return URLSession.shared.dataTaskPublisher(for: request)
