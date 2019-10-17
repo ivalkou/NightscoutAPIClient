@@ -12,11 +12,21 @@ import Combine
 private let nightscoutLabel = "Nightscout"
 
 public class NightscoutAPIService: ServiceAuthentication {
-    public var title = "Nightscout API"
+    public var credentialValues: [String?]
 
-    public var credentialValues: [String?] = []
+    public let title = LocalizedString("Nightscout API", comment: "The title of the Dexcom Share service")
 
-    public var isAuthorized = false
+    public init(url: URL?, secret: String?) {
+        credentialValues = [
+            url?.absoluteString,
+            secret
+        ]
+
+        if let url = url {
+            isAuthorized = true
+            client = NightscoutAPIClient(url: url.absoluteString, secret: secret)
+        }
+    }
 
     private(set) var client: NightscoutAPIClient?
 
@@ -28,6 +38,8 @@ public class NightscoutAPIService: ServiceAuthentication {
         }
         return URL(string: urlString)
     }
+
+    public var isAuthorized = false
 
     public func verify(_ completion: @escaping (Bool, Error?) -> Void) {
         guard let client = client else {
@@ -50,17 +62,6 @@ public class NightscoutAPIService: ServiceAuthentication {
         isAuthorized = false
         client = nil
     }
-
-    public init(url: URL?, secret: String?) {
-        credentialValues = [
-            url?.absoluteString,
-            secret
-        ]
-
-        isAuthorized = true
-        client = NightscoutAPIClient(url: url?.absoluteString, secret: secret)
-    }
-
 }
 
 extension KeychainManager {
