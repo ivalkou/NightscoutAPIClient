@@ -7,12 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		38D2F4FD235A12AD004FFE14 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38D2F4FC235A12AD004FFE14 /* ContentView.swift */; };
 		38E30FBE2358C25100DAB3A0 /* NightscoutAPIClientUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38E30FB52358C25000DAB3A0 /* NightscoutAPIClientUI.framework */; };
 		38E30FC32358C25100DAB3A0 /* NightscoutAPIClientUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38E30FC22358C25100DAB3A0 /* NightscoutAPIClientUITests.swift */; };
 		38E30FC52358C25100DAB3A0 /* NightscoutAPIClientUI.h in Headers */ = {isa = PBXBuildFile; fileRef = 38E30FB72358C25000DAB3A0 /* NightscoutAPIClientUI.h */; settings = {ATTRIBUTES = (Public, ); }; };
-		38E30FCD2358C28900DAB3A0 /* LoopKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38E30FCC2358C28900DAB3A0 /* LoopKit.framework */; };
-		38E30FD12358C29700DAB3A0 /* LoopKitUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38E30FD02358C29700DAB3A0 /* LoopKitUI.framework */; };
-		38E30FD42358C2A500DAB3A0 /* NightscoutAPIClient.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38F61399234F3066003FB95D /* NightscoutAPIClient.framework */; };
 		38F613A3234F3067003FB95D /* NightscoutAPIClient.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38F61399234F3066003FB95D /* NightscoutAPIClient.framework */; };
 		38F613A8234F3067003FB95D /* NightscoutAPIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38F613A7234F3067003FB95D /* NightscoutAPIClientTests.swift */; };
 		38F613AA234F3067003FB95D /* NightscoutAPIClient.h in Headers */ = {isa = PBXBuildFile; fileRef = 38F6139C234F3066003FB95D /* NightscoutAPIClient.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -33,13 +31,6 @@
 			remoteGlobalIDString = 38E30FB42358C25000DAB3A0;
 			remoteInfo = NightscoutAPIClientUI;
 		};
-		38E30FD62358C2A500DAB3A0 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 38F61390234F3066003FB95D /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 38F61398234F3066003FB95D;
-			remoteInfo = NightscoutAPIClient;
-		};
 		38F613A4234F3067003FB95D /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 38F61390234F3066003FB95D /* Project object */;
@@ -50,6 +41,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		38D2F4FC235A12AD004FFE14 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		38E30FB52358C25000DAB3A0 /* NightscoutAPIClientUI.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = NightscoutAPIClientUI.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		38E30FB72358C25000DAB3A0 /* NightscoutAPIClientUI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NightscoutAPIClientUI.h; sourceTree = "<group>"; };
 		38E30FB82358C25000DAB3A0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -79,9 +71,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				38E30FCD2358C28900DAB3A0 /* LoopKit.framework in Frameworks */,
-				38E30FD42358C2A500DAB3A0 /* NightscoutAPIClient.framework in Frameworks */,
-				38E30FD12358C29700DAB3A0 /* LoopKitUI.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -117,6 +106,7 @@
 			children = (
 				38E30FB72358C25000DAB3A0 /* NightscoutAPIClientUI.h */,
 				38E30FB82358C25000DAB3A0 /* Info.plist */,
+				38D2F4FC235A12AD004FFE14 /* ContentView.swift */,
 			);
 			path = NightscoutAPIClientUI;
 			sourceTree = "<group>";
@@ -230,7 +220,6 @@
 			buildRules = (
 			);
 			dependencies = (
-				38E30FD72358C2A500DAB3A0 /* PBXTargetDependency */,
 			);
 			name = NightscoutAPIClientUI;
 			productName = NightscoutAPIClientUI;
@@ -303,6 +292,7 @@
 				TargetAttributes = {
 					38E30FB42358C25000DAB3A0 = {
 						CreatedOnToolsVersion = 11.1;
+						LastSwiftMigration = 1110;
 					};
 					38E30FBC2358C25100DAB3A0 = {
 						CreatedOnToolsVersion = 11.1;
@@ -373,6 +363,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				38D2F4FD235A12AD004FFE14 /* ContentView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -413,11 +404,6 @@
 			target = 38E30FB42358C25000DAB3A0 /* NightscoutAPIClientUI */;
 			targetProxy = 38E30FBF2358C25100DAB3A0 /* PBXContainerItemProxy */;
 		};
-		38E30FD72358C2A500DAB3A0 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 38F61398234F3066003FB95D /* NightscoutAPIClient */;
-			targetProxy = 38E30FD62358C2A500DAB3A0 /* PBXContainerItemProxy */;
-		};
 		38F613A5234F3067003FB95D /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 38F61398234F3066003FB95D /* NightscoutAPIClient */;
@@ -429,6 +415,7 @@
 		38E30FC62358C25100DAB3A0 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				DEFINES_MODULE = YES;
 				DEVELOPMENT_TEAM = BA7ZHP4963;
@@ -445,6 +432,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = ru.artpancreas.NightscoutAPIClientUI;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -453,6 +441,7 @@
 		38E30FC72358C25100DAB3A0 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				DEFINES_MODULE = YES;
 				DEVELOPMENT_TEAM = BA7ZHP4963;
@@ -477,6 +466,7 @@
 		38E30FC82358C25100DAB3A0 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = BA7ZHP4963;
 				INFOPLIST_FILE = NightscoutAPIClientUITests/Info.plist;
@@ -495,6 +485,7 @@
 		38E30FC92358C25100DAB3A0 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = BA7ZHP4963;
 				INFOPLIST_FILE = NightscoutAPIClientUITests/Info.plist;

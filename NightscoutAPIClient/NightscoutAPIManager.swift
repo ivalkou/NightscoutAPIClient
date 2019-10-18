@@ -13,7 +13,7 @@ public class NightscoutAPIManager: CGMManager {
     public static var managerIdentifier = "NightscoutAPIClient"
 
     public init() {
-        service = NightscoutAPIService(keychainManager: keychain)
+        nightscoutService = NightscoutAPIService(keychainManager: keychain)
     }
 
     public convenience required init?(rawState: CGMManager.RawStateValue) {
@@ -26,7 +26,7 @@ public class NightscoutAPIManager: CGMManager {
 
     public var nightscoutService: NightscoutAPIService {
         didSet {
-            try! keychain.setNightscoutURL(service.ulr, secret: service.secret)
+            try! keychain.setNightscoutURL(nightscoutService.ulr, secret: nightscoutService.secret)
         }
     }
 
