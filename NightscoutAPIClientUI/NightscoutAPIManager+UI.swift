@@ -16,7 +16,7 @@ extension NightscoutAPIManager: CGMManagerUI {
     }
 
     public func settingsViewController(for glucoseUnit: HKUnit) -> (UIViewController & CompletionNotifying) {
-        NightscoutAPISettingsViewController(rootView: ContentView())
+        NightscoutAPISettingsViewController(cgmManager: self, glucoseUnit: glucoseUnit)
     }
 
     public var smallImage: UIImage? { nil }

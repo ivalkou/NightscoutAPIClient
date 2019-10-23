@@ -25,7 +25,7 @@ public class NightscoutAPIService: ServiceAuthentication {
 
     private(set) var client: NightscoutAPIClient?
 
-    var url: URL? {
+    public var url: URL? {
         guard let urlString = credentialValues[0] else {
             return nil
         }

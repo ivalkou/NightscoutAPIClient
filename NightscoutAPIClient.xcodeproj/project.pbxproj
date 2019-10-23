@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		06E10A172360DBCC009B6FED /* LoopKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38E30FCC2358C28900DAB3A0 /* LoopKit.framework */; };
+		06E10A192360DBCE009B6FED /* NightscoutAPIClient.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38F61399234F3066003FB95D /* NightscoutAPIClient.framework */; };
 		384D8F022360862A00B1DD29 /* LocalizedString.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38F613BD234F3E83003FB95D /* LocalizedString.swift */; };
 		384D8F032360862F00B1DD29 /* TimeInterval.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38FA78D22350C80600780D61 /* TimeInterval.swift */; };
 		384D8F042360864100B1DD29 /* NightscoutAPIClient.h in Headers */ = {isa = PBXBuildFile; fileRef = 38F6139C234F3066003FB95D /* NightscoutAPIClient.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -17,16 +19,13 @@
 		384D8F0B23608A4500B1DD29 /* HealthKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 384D8F0A23608A4400B1DD29 /* HealthKit.framework */; };
 		384D8F0E23608BEA00B1DD29 /* LoopKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 384D8F0D23608BEA00B1DD29 /* LoopKit.framework */; };
 		384D8F1123608C8100B1DD29 /* LoopKitUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38E30FD02358C29700DAB3A0 /* LoopKitUI.framework */; };
-		384D8F1223608C8100B1DD29 /* LoopKitUI.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 38E30FD02358C29700DAB3A0 /* LoopKitUI.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		38589848235DA80E00919FD4 /* NightscoutAPIManager+UI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38589847235DA80E00919FD4 /* NightscoutAPIManager+UI.swift */; };
 		38589850235E027500919FD4 /* NightscoutAPISetupViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3858984F235E027500919FD4 /* NightscoutAPISetupViewController.swift */; };
 		38589852235E035D00919FD4 /* NightscoutAPISettingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38589851235E035D00919FD4 /* NightscoutAPISettingsViewController.swift */; };
-		38589857235E051F00919FD4 /* NightscoutAPIClient.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38F61399234F3066003FB95D /* NightscoutAPIClient.framework */; };
-		3858985B235E052C00919FD4 /* LoopKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38E30FCC2358C28900DAB3A0 /* LoopKit.framework */; };
 		3858985E235E074600919FD4 /* NightscoutAPIService+UI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3858985D235E074600919FD4 /* NightscoutAPIService+UI.swift */; };
 		3858985F235E07CC00919FD4 /* LocalizedString.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38F613BD234F3E83003FB95D /* LocalizedString.swift */; };
 		38589860235E07D500919FD4 /* TimeInterval.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38FA78D22350C80600780D61 /* TimeInterval.swift */; };
-		38D2F4FD235A12AD004FFE14 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38D2F4FC235A12AD004FFE14 /* ContentView.swift */; };
+		38D2F4FD235A12AD004FFE14 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38D2F4FC235A12AD004FFE14 /* SettingsView.swift */; };
 		38E30FC52358C25100DAB3A0 /* NightscoutAPIClientUI.h in Headers */ = {isa = PBXBuildFile; fileRef = 38E30FB72358C25000DAB3A0 /* NightscoutAPIClientUI.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		38F613A3234F3067003FB95D /* NightscoutAPIClient.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38F61399234F3066003FB95D /* NightscoutAPIClient.framework */; };
 		38F613A8234F3067003FB95D /* NightscoutAPIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38F613A7234F3067003FB95D /* NightscoutAPIClientTests.swift */; };
@@ -58,20 +57,6 @@
 		};
 /* End PBXContainerItemProxy section */
 
-/* Begin PBXCopyFilesBuildPhase section */
-		384D8F1323608C8100B1DD29 /* Embed Frameworks */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 10;
-			files = (
-				384D8F1223608C8100B1DD29 /* LoopKitUI.framework in Embed Frameworks */,
-			);
-			name = "Embed Frameworks";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXCopyFilesBuildPhase section */
-
 /* Begin PBXFileReference section */
 		384D8EFA236085C300B1DD29 /* NightscoutAPIClient.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = NightscoutAPIClient.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		384D8F0A23608A4400B1DD29 /* HealthKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = HealthKit.framework; path = Platforms/WatchOS.platform/Developer/SDKs/WatchOS6.0.sdk/System/Library/Frameworks/HealthKit.framework; sourceTree = DEVELOPER_DIR; };
@@ -81,7 +66,7 @@
 		38589851235E035D00919FD4 /* NightscoutAPISettingsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightscoutAPISettingsViewController.swift; sourceTree = "<group>"; };
 		38589853235E051500919FD4 /* LoopUI.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = LoopUI.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		3858985D235E074600919FD4 /* NightscoutAPIService+UI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NightscoutAPIService+UI.swift"; sourceTree = "<group>"; };
-		38D2F4FC235A12AD004FFE14 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		38D2F4FC235A12AD004FFE14 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		38E30FB52358C25000DAB3A0 /* NightscoutAPIClientUI.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = NightscoutAPIClientUI.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		38E30FB72358C25000DAB3A0 /* NightscoutAPIClientUI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NightscoutAPIClientUI.h; sourceTree = "<group>"; };
 		38E30FB82358C25000DAB3A0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -118,8 +103,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				38589857235E051F00919FD4 /* NightscoutAPIClient.framework in Frameworks */,
-				3858985B235E052C00919FD4 /* LoopKit.framework in Frameworks */,
+				06E10A172360DBCC009B6FED /* LoopKit.framework in Frameworks */,
+				06E10A192360DBCE009B6FED /* NightscoutAPIClient.framework in Frameworks */,
 				384D8F1123608C8100B1DD29 /* LoopKitUI.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -149,7 +134,7 @@
 			children = (
 				38E30FB72358C25000DAB3A0 /* NightscoutAPIClientUI.h */,
 				38E30FB82358C25000DAB3A0 /* Info.plist */,
-				38D2F4FC235A12AD004FFE14 /* ContentView.swift */,
+				38D2F4FC235A12AD004FFE14 /* SettingsView.swift */,
 				38589847235DA80E00919FD4 /* NightscoutAPIManager+UI.swift */,
 				3858984F235E027500919FD4 /* NightscoutAPISetupViewController.swift */,
 				38589851235E035D00919FD4 /* NightscoutAPISettingsViewController.swift */,
@@ -283,7 +268,6 @@
 				38E30FB12358C25000DAB3A0 /* Sources */,
 				38E30FB22358C25000DAB3A0 /* Frameworks */,
 				38E30FB32358C25000DAB3A0 /* Resources */,
-				384D8F1323608C8100B1DD29 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -433,7 +417,7 @@
 				3858985F235E07CC00919FD4 /* LocalizedString.swift in Sources */,
 				3858985E235E074600919FD4 /* NightscoutAPIService+UI.swift in Sources */,
 				38589852235E035D00919FD4 /* NightscoutAPISettingsViewController.swift in Sources */,
-				38D2F4FD235A12AD004FFE14 /* ContentView.swift in Sources */,
+				38D2F4FD235A12AD004FFE14 /* SettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

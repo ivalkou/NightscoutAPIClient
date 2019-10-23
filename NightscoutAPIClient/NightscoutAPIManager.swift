@@ -11,6 +11,10 @@ import HealthKit
 import Combine
 
 public class NightscoutAPIManager: CGMManager {
+    private enum Config {
+        static var shouldSyncKey = "NightscoutAPIClient.shouldSync"
+    }
+
     public static var managerIdentifier = "NightscoutAPIClient"
 
     public init() {
@@ -19,9 +23,10 @@ public class NightscoutAPIManager: CGMManager {
 
     public convenience required init?(rawState: CGMManager.RawStateValue) {
         self.init()
+        shouldSyncToRemoteService = rawState[Config.shouldSyncKey] as? Bool ?? false
     }
 
-    public var rawState: CGMManager.RawStateValue { [:] }
+    public var rawState: CGMManager.RawStateValue { [Config.shouldSyncKey: shouldSyncToRemoteService] }
 
     private let keychain = KeychainManager()
 
