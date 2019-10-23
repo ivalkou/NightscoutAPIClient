@@ -26,6 +26,12 @@ final class NightscoutAPIClient {
         case missingURL
     }
 
+    private lazy var decoder: JSONDecoder = {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        return decoder
+    }()
+
     func fetchLast(_ count: Int) -> AnyPublisher<[BloodGlucose], Swift.Error> {
         var components = URLComponents()
         components.scheme = url.scheme
@@ -44,7 +50,7 @@ final class NightscoutAPIClient {
             }
             return output.data
         }
-        .decode(type: [BloodGlucose].self, decoder: JSONDecoder())
+        .decode(type: [BloodGlucose].self, decoder: decoder)
         .eraseToAnyPublisher()
     }
     

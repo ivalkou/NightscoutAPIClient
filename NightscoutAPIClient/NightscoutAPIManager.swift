@@ -69,7 +69,7 @@ public class NightscoutAPIManager: CGMManager {
         }
 
         requestReceiver?.cancel()
-        requestReceiver = nightscoutClient.fetchLast(1)
+        requestReceiver = nightscoutClient.fetchLast(12)
             .sink(receiveCompletion: { finish in
                 switch finish {
                 case .finished: break
@@ -82,7 +82,6 @@ public class NightscoutAPIManager: CGMManager {
                     return
                 }
 
-                // Ignore glucose values that are up to a minute newer than our previous value, to account for possible time shifting in Share data
                 let startDate = self.delegate.call { (delegate) -> Date? in
                     return delegate?.startDateToFilterNewData(for: self)?.addingTimeInterval(TimeInterval(minutes: 1))
                 }
