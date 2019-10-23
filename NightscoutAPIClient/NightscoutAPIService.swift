@@ -9,28 +9,21 @@
 import LoopKit
 import Combine
 
-private let nightscoutLabel = "Nightscout"
-
 public class NightscoutAPIService: ServiceAuthentication {
     public var credentialValues: [String?]
 
     public let title = LocalizedString("Nightscout API", comment: "The title of the Dexcom Share service")
 
-    public init(url: URL?, secret: String?) {
-        credentialValues = [
-            url?.absoluteString,
-            secret
-        ]
+    public init(url: URL?) {
+        credentialValues = [url?.absoluteString]
 
         if let url = url {
             isAuthorized = true
-            client = NightscoutAPIClient(url: url.absoluteString, secret: secret)
+            client = NightscoutAPIClient(url: url.absoluteString)
         }
     }
 
     private(set) var client: NightscoutAPIClient?
-
-    var secret: String? { credentialValues[1] }
 
     var ulr: URL? {
         guard let urlString = credentialValues[0] else {
@@ -41,46 +34,58 @@ public class NightscoutAPIService: ServiceAuthentication {
 
     public var isAuthorized = false
 
+    private var requestReceiver: Cancellable?
+
     public func verify(_ completion: @escaping (Bool, Error?) -> Void) {
         guard let client = client else {
             completion(false, nil)
             return
         }
 
-        _ = client.checkStatus()
-            .sink(receiveCompletion: { result in
-                switch result {
-                case .finished:
-                    completion(true, nil)
+        requestReceiver?.cancel()
+        requestReceiver = client.fetchLast(1)
+            .sink(receiveCompletion: { finish in
+                switch finish {
+                case .finished: break
                 case let .failure(error):
                     completion(false, error)
                 }
-            }, receiveValue: { _ in })
+            }, receiveValue: { glucose in
+                completion(!glucose.isEmpty, nil)
+            })
     }
 
     public func reset() {
         isAuthorized = false
         client = nil
+        requestReceiver?.cancel()
     }
 }
 
 extension KeychainManager {
-    func setNightscoutURL(_ url: URL?, secret: String?) throws {
-        let credentials: InternetCredentials?
-
-        if let url = url, let secret = secret {
-            credentials = InternetCredentials(username: "1", password: secret, url: url)
-        } else {
-            credentials = nil
-        }
-
-        try replaceInternetCredentials(credentials, forLabel: nightscoutLabel)
+    private enum Config {
+        static let nightscoutCgmLabel = "NightscoutCGM"
+        static let nightscoutCgmSecret = ""
     }
 
-    func getNightscoutCredentials() -> (secret: String, url: URL)? {
+    func setNightscoutCgmURL(_ url: URL?) {
         do {
-            let credentials = try getInternetCredentials(label: nightscoutLabel)
-            return (secret: credentials.password, url: credentials.url)
+            let credentials: InternetCredentials?
+
+            if let url = url {
+                credentials = InternetCredentials(username: Config.nightscoutCgmLabel, password: Config.nightscoutCgmSecret, url: url)
+            } else {
+                credentials = nil
+            }
+
+            try replaceInternetCredentials(credentials, forAccount: Config.nightscoutCgmLabel)
+        } catch {}
+    }
+
+    func getNightscoutCgmURL() -> URL? {
+        do {
+            let credentials = try getInternetCredentials(account: Config.nightscoutCgmLabel)
+            return credentials.url
         } catch {
             return nil
         }
@@ -89,10 +94,6 @@ extension KeychainManager {
 
 extension NightscoutAPIService {
     public convenience init(keychainManager: KeychainManager = KeychainManager()) {
-        if let (secret, url) = keychainManager.getNightscoutCredentials() {
-            self.init(url: url, secret: secret)
-        } else {
-            self.init(url: nil, secret: nil)
-        }
+        self.init(url: keychainManager.getNightscoutCgmURL())
     }
 }

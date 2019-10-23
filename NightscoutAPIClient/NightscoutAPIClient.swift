@@ -9,13 +9,7 @@
 import Foundation
 import Combine
 
-struct Status: Decodable, Equatable {
-    var status: String
-    static let ok = Status(status: "ok")
-}
-
 final class NightscoutAPIClient {
-    let secret: String?
     let url: String?
 
     private enum Config {
@@ -23,38 +17,32 @@ final class NightscoutAPIClient {
         static let retryCount = 5
     }
 
-    init(url: String?, secret: String?) {
+    init(url: String?) {
         self.url = url
-        self.secret = secret
     }
 
     enum Error: LocalizedError {
-        case statusCode
-        case unknownStatus
+        case badStatusCode
         case missingURL
     }
 
-    func checkStatus() -> AnyPublisher<Never, Swift.Error> {
+    func fetchLast(_ count: Int) -> AnyPublisher<[BloodGlucose], Swift.Error> {
         guard let url = url else {
             return Fail(error: Error.missingURL).eraseToAnyPublisher()
         }
 
-        var request = URLRequest(url: URL(string: url + Config.apiPath + "/status.json")!)
+        var request = URLRequest(url: URL(string: url + Config.apiPath + "/entries.json?count=\(count)")!)
         request.allowsConstrainedNetworkAccess = false
         return URLSession.shared.dataTaskPublisher(for: request)
-            .retry(Config.retryCount)
-            .tryMap { output in
-                guard let response = output.response as? HTTPURLResponse, response.statusCode == 200 else {
-                    throw Error.statusCode
-                }
-                return output.data
+        .retry(Config.retryCount)
+        .tryMap { output in
+            guard let response = output.response as? HTTPURLResponse, response.statusCode == 200 else {
+                throw Error.badStatusCode
             }
-            .decode(type: Status.self, decoder: JSONDecoder())
-            .tryMap { value in
-                if value != .ok { throw Error.unknownStatus }
-            }
-            .ignoreOutput()
-            .eraseToAnyPublisher()
+            return output.data
+        }
+        .decode(type: [BloodGlucose].self, decoder: JSONDecoder())
+        .eraseToAnyPublisher()
     }
     
 }

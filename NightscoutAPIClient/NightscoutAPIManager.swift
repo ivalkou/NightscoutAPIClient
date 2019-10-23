@@ -26,7 +26,7 @@ public class NightscoutAPIManager: CGMManager {
 
     public var nightscoutService: NightscoutAPIService {
         didSet {
-            try! keychain.setNightscoutURL(nightscoutService.ulr, secret: nightscoutService.secret)
+            keychain.setNightscoutCgmURL(nightscoutService.ulr)
         }
     }
 

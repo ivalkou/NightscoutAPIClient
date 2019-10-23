@@ -8,11 +8,11 @@
 
 import SwiftUI
 
-struct ContentView: View {
+public struct ContentView: View {
     @State var url = ""
     @State var upload = false
 
-    var body: some View {
+    public var body: some View {
         NavigationView {
             Form {
                 Section(
@@ -39,17 +39,6 @@ struct ContentView: View {
 
             }
             .navigationBarTitle("Nightscout API")
-            .navigationBarItems(
-                leading:
-                    Button("Close") {
-                        print("Close tapped!")
-                    },
-                trailing:
-                    Button("Save") {
-                        print("Save tapped!")
-                    }
-
-            )
         }
     }
 
