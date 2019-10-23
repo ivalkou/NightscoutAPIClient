@@ -10,14 +10,14 @@ import Foundation
 import Combine
 
 final class NightscoutAPIClient {
-    let url: String?
+    let url: URL
 
     private enum Config {
-        static let apiPath = "/api/v1"
+        static let entriesPath = "/api/v1/entries.json"
         static let retryCount = 5
     }
 
-    init(url: String?) {
+    init(url: URL) {
         self.url = url
     }
 
@@ -27,12 +27,15 @@ final class NightscoutAPIClient {
     }
 
     func fetchLast(_ count: Int) -> AnyPublisher<[BloodGlucose], Swift.Error> {
-        guard let url = url else {
-            return Fail(error: Error.missingURL).eraseToAnyPublisher()
-        }
+        var components = URLComponents()
+        components.scheme = url.scheme
+        components.host = url.host
+        components.path = Config.entriesPath
+        components.queryItems = [URLQueryItem(name: "count", value: "\(count)")]
 
-        var request = URLRequest(url: URL(string: url + Config.apiPath + "/entries.json?count=\(count)")!)
+        var request = URLRequest(url: components.url!)
         request.allowsConstrainedNetworkAccess = false
+        
         return URLSession.shared.dataTaskPublisher(for: request)
         .retry(Config.retryCount)
         .tryMap { output in

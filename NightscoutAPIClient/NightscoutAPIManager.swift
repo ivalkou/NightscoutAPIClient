@@ -8,6 +8,7 @@
 
 import LoopKit
 import HealthKit
+import Combine
 
 public class NightscoutAPIManager: CGMManager {
     public static var managerIdentifier = "NightscoutAPIClient"
@@ -26,7 +27,7 @@ public class NightscoutAPIManager: CGMManager {
 
     public var nightscoutService: NightscoutAPIService {
         didSet {
-            keychain.setNightscoutCgmURL(nightscoutService.ulr)
+            keychain.setNightscoutCgmURL(nightscoutService.url)
         }
     }
 
@@ -54,22 +55,50 @@ public class NightscoutAPIManager: CGMManager {
 
     public var sensorState: SensorDisplayable? { latestBackfill }
 
+    private var requestReceiver: Cancellable?
+
     public func fetchNewDataIfNeeded(_ completion: @escaping (CGMResult) -> Void) {
         guard let nightscoutClient = nightscoutService.client else {
             completion(.noData)
             return
         }
 
-        // If our last glucose was less than 4.5 minutes ago, don't fetch.
         if let latestGlucose = latestBackfill, latestGlucose.startDate.timeIntervalSinceNow > -TimeInterval(minutes: 4.5) {
             completion(.noData)
             return
         }
 
-        let startDate = self.delegate.call { (delegate) -> Date? in
-            return delegate?.startDateToFilterNewData(for: self)?.addingTimeInterval(TimeInterval(minutes: 1))
-        }
-        
+        requestReceiver?.cancel()
+        requestReceiver = nightscoutClient.fetchLast(1)
+            .sink(receiveCompletion: { finish in
+                switch finish {
+                case .finished: break
+                case let .failure(error):
+                    completion(.error(error))
+                }
+            }, receiveValue: { [weak self] glucose in
+                guard !glucose.isEmpty, let self = self else {
+                    completion(.noData)
+                    return
+                }
+
+                // Ignore glucose values that are up to a minute newer than our previous value, to account for possible time shifting in Share data
+                let startDate = self.delegate.call { (delegate) -> Date? in
+                    return delegate?.startDateToFilterNewData(for: self)?.addingTimeInterval(TimeInterval(minutes: 1))
+                }
+                let newGlucose = glucose.filterDateRange(startDate, nil)
+                let newSamples = newGlucose.filter({ $0.isStateValid }).map {
+                    return NewGlucoseSample(date: $0.startDate, quantity: $0.quantity, isDisplayOnly: false, syncIdentifier: "\(Int($0.startDate.timeIntervalSince1970))", device: self.device)
+                }
+
+                self.latestBackfill = newGlucose.first
+
+                if newSamples.count > 0 {
+                    completion(.newData(newSamples))
+                } else {
+                    completion(.noData)
+                }
+            })
     }
 
     public var device: HKDevice? = nil

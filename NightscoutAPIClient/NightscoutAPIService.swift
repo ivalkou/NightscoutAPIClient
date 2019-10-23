@@ -19,13 +19,13 @@ public class NightscoutAPIService: ServiceAuthentication {
 
         if let url = url {
             isAuthorized = true
-            client = NightscoutAPIClient(url: url.absoluteString)
+            client = NightscoutAPIClient(url: url)
         }
     }
 
     private(set) var client: NightscoutAPIClient?
 
-    var ulr: URL? {
+    var url: URL? {
         guard let urlString = credentialValues[0] else {
             return nil
         }
@@ -37,11 +37,12 @@ public class NightscoutAPIService: ServiceAuthentication {
     private var requestReceiver: Cancellable?
 
     public func verify(_ completion: @escaping (Bool, Error?) -> Void) {
-        guard let client = client else {
+        guard let url = url else {
             completion(false, nil)
             return
         }
 
+        let client = NightscoutAPIClient(url: url)
         requestReceiver?.cancel()
         requestReceiver = client.fetchLast(1)
             .sink(receiveCompletion: { finish in
@@ -53,6 +54,8 @@ public class NightscoutAPIService: ServiceAuthentication {
             }, receiveValue: { glucose in
                 completion(!glucose.isEmpty, nil)
             })
+
+        self.client = client
     }
 
     public func reset() {
