@@ -12,7 +12,7 @@ import Combine
 public class NightscoutAPIService: ServiceAuthentication {
     public var credentialValues: [String?]
 
-    public let title = LocalizedString("Nightscout API", comment: "The title of the Dexcom Share service")
+    public let title = LocalizedString("Nightscout CGM", comment: "The title of the Nightscout service")
 
     public init(url: URL?) {
         credentialValues = [url?.absoluteString]
