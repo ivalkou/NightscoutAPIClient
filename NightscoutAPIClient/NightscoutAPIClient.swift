@@ -36,6 +36,7 @@ final class NightscoutAPIClient {
         var components = URLComponents()
         components.scheme = url.scheme
         components.host = url.host
+        components.port = url.port
         components.path = Config.entriesPath
         components.queryItems = [URLQueryItem(name: "count", value: "\(count)")]
 
