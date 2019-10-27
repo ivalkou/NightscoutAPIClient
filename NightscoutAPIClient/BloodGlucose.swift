@@ -28,9 +28,9 @@ public struct BloodGlucose: Codable {
             switch self {
             case .tripleUp: return .upUpUp
             case .doubleUp: return .upUp
-            case .singleUp: return .up
+            case .singleUp, .fortyFiveUp: return .up
             case .flat: return .flat
-            case .singleDown: return .down
+            case .singleDown, .fortyFiveDown: return .down
             case .doubleDown: return .downDown
             case .tripleDown: return .downDownDown
             default: return nil

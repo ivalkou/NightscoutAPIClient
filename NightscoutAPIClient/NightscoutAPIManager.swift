@@ -36,7 +36,7 @@ public class NightscoutAPIManager: CGMManager {
         }
     }
 
-    public static var localizedTitle = LocalizedString("Nightscout API", comment: "Title for the CGMManager option")
+    public static var localizedTitle = LocalizedString("Nightscout CGM", comment: "Title for the CGMManager option")
 
     public let delegate = WeakSynchronizedDelegate<CGMManagerDelegate>()
 
