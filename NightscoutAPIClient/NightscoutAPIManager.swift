@@ -110,4 +110,12 @@ public class NightscoutAPIManager: CGMManager {
     public var debugDescription: String {
         "## NightscoutAPIManager\nlatestBackfill: \(String(describing: latestBackfill))\n"
     }
+
+    public var appURL: URL? {
+        guard let url = nightscoutService.url else { return nil }
+        if url.absoluteString == "http://127.0.0.1:1979" {
+            return URL(string: "spikeapp://")
+        }
+        return url
+    }
 }
