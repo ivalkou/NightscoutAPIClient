@@ -38,19 +38,21 @@ public struct BloodGlucose: Codable {
         }
     }
 
-    public let sgv: UInt16
+    public let sgv: UInt16?
     public let direction: Direction?
     public let date: Date
+
+    private var glucose: UInt16 { sgv ?? 0 }
     
 }
 
 extension BloodGlucose: GlucoseValue {
     public var startDate: Date { date }
-    public var quantity: HKQuantity { .init(unit: .milligramsPerDeciliter, doubleValue: Double(sgv)) }
+    public var quantity: HKQuantity { .init(unit: .milligramsPerDeciliter, doubleValue: Double(glucose)) }
 }
 
 extension BloodGlucose: SensorDisplayable {
-    public var isStateValid: Bool { sgv >= 39 }
+    public var isStateValid: Bool { glucose >= 39 }
     public var trendType: GlucoseTrend? { direction?.trend }
     public var isLocal: Bool { false }
 }

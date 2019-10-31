@@ -52,6 +52,7 @@ final class NightscoutAPIClient {
             return output.data
         }
         .decode(type: [BloodGlucose].self, decoder: decoder)
+        .map { $0.filter { $0.isStateValid } }
         .eraseToAnyPublisher()
     }
     
