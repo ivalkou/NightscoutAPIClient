@@ -24,10 +24,12 @@ final class NightscoutAPISetupViewController: UINavigationController, CGMManager
         super.init(rootViewController: authVC)
 
         authVC.authenticationObserver = { [weak self] (service) in
+            authVC.navigationItem.rightBarButtonItem?.isEnabled = service.isAuthorized
             self?.cgmManager.nightscoutService = service
         }
         authVC.navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .cancel, target: self, action: #selector(cancel))
         authVC.navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .save, target: self, action: #selector(save))
+        authVC.navigationItem.rightBarButtonItem?.isEnabled = false
     }
 
     required init?(coder: NSCoder) {

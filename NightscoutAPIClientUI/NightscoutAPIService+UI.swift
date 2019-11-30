@@ -13,7 +13,7 @@ extension NightscoutAPIService: ServiceAuthenticationUI {
     public var credentialFormFields: [ServiceCredential] {
         [
             ServiceCredential(
-                title: LocalizedString("Server", comment: "The title of the Nightscout API server URL credential"),
+                title: LocalizedString("URL", comment: "The title of the Nightscout API server URL credential"),
                 isSecret: false,
                 keyboardType: .URL
             )
