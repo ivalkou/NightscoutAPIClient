@@ -41,6 +41,7 @@ public struct BloodGlucose: Codable {
     public let sgv: UInt16?
     public let direction: Direction?
     public let date: Date
+    public let filtered: UInt32?
 
     private var glucose: UInt16 { sgv ?? 0 }
     

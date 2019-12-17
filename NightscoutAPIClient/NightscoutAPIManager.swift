@@ -11,6 +11,10 @@ import HealthKit
 import Combine
 
 public class NightscoutAPIManager: CGMManager {
+    public enum CGMError: Error {
+        case tooFlatData
+    }
+
     private enum Config {
         static var shouldSyncKey = "NightscoutAPIClient.shouldSync"
     }
@@ -84,6 +88,17 @@ public class NightscoutAPIManager: CGMManager {
             }, receiveValue: { [weak self] glucose in
                 guard !glucose.isEmpty, let self = self else {
                     completion(.noData)
+                    return
+                }
+
+                let tooFlat = Set(
+                    glucose.filterDateRange(Date(timeIntervalSinceNow: -60 * 20), nil)
+                        .filter { $0.isStateValid }
+                        .map { $0.filtered ?? 0 }
+                ).count <= 1
+
+                guard !tooFlat else {
+                    completion(.error(CGMError.tooFlatData))
                     return
                 }
 
