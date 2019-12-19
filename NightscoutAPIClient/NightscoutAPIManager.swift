@@ -95,7 +95,7 @@ public class NightscoutAPIManager: CGMManager {
                     glucose.filterDateRange(Date(timeIntervalSinceNow: -60 * 20), nil)
                         .filter { $0.isStateValid }
                         .map { $0.filtered ?? 0 }
-                ).count <= 1
+                ).count == 1
 
                 guard !tooFlat else {
                     completion(.error(CGMError.tooFlatData))
