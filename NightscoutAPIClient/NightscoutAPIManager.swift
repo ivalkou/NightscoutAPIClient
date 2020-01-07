@@ -23,6 +23,8 @@ public class NightscoutAPIManager: CGMManager {
 
     public init() {
         nightscoutService = NightscoutAPIService(keychainManager: keychain)
+        updateTimer = DispatchTimer(timeInterval: 10)
+        scheduleUpdateTimer()
     }
 
     public convenience required init?(rawState: CGMManager.RawStateValue) {
@@ -136,5 +138,23 @@ public class NightscoutAPIManager: CGMManager {
         default:
             return url
         }
+    }
+
+    private let updateTimer: DispatchTimer
+
+    private func scheduleUpdateTimer() {
+        updateTimer.suspend()
+        updateTimer.eventHandler = { [weak self] in
+            guard let self = self else { return }
+            self.fetchNewDataIfNeeded { result in
+                guard case .newData = result else { return }
+                self.delegateQueue.async {
+                    self.delegate.notify { delegate in
+                        delegate?.cgmManager(self, didUpdateWith: result)
+                    }
+                }
+            }
+        }
+        updateTimer.resume()
     }
 }
