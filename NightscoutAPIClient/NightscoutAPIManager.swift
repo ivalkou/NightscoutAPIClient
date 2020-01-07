@@ -128,9 +128,13 @@ public class NightscoutAPIManager: CGMManager {
 
     public var appURL: URL? {
         guard let url = nightscoutService.url else { return nil }
-        if url.absoluteString == "http://127.0.0.1:1979" {
+        switch url.absoluteString {
+        case "http://127.0.0.1:1979":
             return URL(string: "spikeapp://")
+        case "http://127.0.0.1:17580":
+            return URL(string: "diabox://")
+        default:
+            return url
         }
-        return url
     }
 }
