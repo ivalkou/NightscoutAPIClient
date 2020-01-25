@@ -79,7 +79,6 @@ public class NightscoutAPIManager: CGMManager {
             return
         }
 
-        requestReceiver?.cancel()
         requestReceiver = nightscoutClient.fetchLast(12)
             .sink(receiveCompletion: { finish in
                 switch finish {
