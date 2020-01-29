@@ -23,7 +23,7 @@ public class NightscoutAPIManager: CGMManager {
 
     public init() {
         nightscoutService = NightscoutAPIService(keychainManager: keychain)
-        updateTimer = DispatchTimer(timeInterval: 10)
+        updateTimer = DispatchTimer(timeInterval: 10, queue: processQueue)
         scheduleUpdateTimer()
     }
 
@@ -68,8 +68,12 @@ public class NightscoutAPIManager: CGMManager {
 
     private var requestReceiver: Cancellable?
 
+    private let processQueue = DispatchQueue(label: "NightscoutAPIManager.processQueue")
+
+    private var isFetching = false
+
     public func fetchNewDataIfNeeded(_ completion: @escaping (CGMResult) -> Void) {
-        guard let nightscoutClient = nightscoutService.client else {
+        guard let nightscoutClient = nightscoutService.client, !isFetching else {
             completion(.noData)
             return
         }
@@ -79,7 +83,9 @@ public class NightscoutAPIManager: CGMManager {
             return
         }
 
-        requestReceiver = nightscoutClient.fetchLast(12)
+        processQueue.async {
+            self.isFetching = true
+            self.requestReceiver = nightscoutClient.fetchLast(12)
             .sink(receiveCompletion: { finish in
                 switch finish {
                 case .finished: break
@@ -112,13 +118,19 @@ public class NightscoutAPIManager: CGMManager {
                 }
 
                 self.latestBackfill = newGlucose.first
+                self.isFetching = false
 
-                if newSamples.count > 0 {
-                    completion(.newData(newSamples))
-                } else {
-                    completion(.noData)
+                self.delegateQueue.async {
+                    if newSamples.count > 0 {
+                        completion(.newData(newSamples))
+                    } else {
+                        completion(.noData)
+                    }
                 }
             })
+        }
+
+
     }
 
     public var device: HKDevice? = nil
@@ -147,10 +159,8 @@ public class NightscoutAPIManager: CGMManager {
             guard let self = self else { return }
             self.fetchNewDataIfNeeded { result in
                 guard case .newData = result else { return }
-                self.delegateQueue.async {
-                    self.delegate.notify { delegate in
-                        delegate?.cgmManager(self, didUpdateWith: result)
-                    }
+                self.delegate.notify { delegate in
+                    delegate?.cgmManager(self, didUpdateWith: result)
                 }
             }
         }
