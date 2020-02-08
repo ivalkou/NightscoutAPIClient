@@ -11,8 +11,8 @@ import HealthKit
 import Combine
 
 public class NightscoutAPIManager: CGMManager {
-    public enum CGMError: Error {
-        case tooFlatData
+    public enum CGMError: String, Error {
+        case tooFlatData = "BG data is too flat."
     }
 
     private enum Config {
@@ -74,12 +74,16 @@ public class NightscoutAPIManager: CGMManager {
 
     public func fetchNewDataIfNeeded(_ completion: @escaping (CGMResult) -> Void) {
         guard let nightscoutClient = nightscoutService.client, !isFetching else {
-            completion(.noData)
+            delegateQueue.async {
+                completion(.noData)
+            }
             return
         }
 
         if let latestGlucose = latestBackfill, latestGlucose.startDate.timeIntervalSinceNow > -TimeInterval(minutes: 4.5) {
-            completion(.noData)
+            delegateQueue.async {
+                completion(.noData)
+            }
             return
         }
 
@@ -90,11 +94,17 @@ public class NightscoutAPIManager: CGMManager {
                 switch finish {
                 case .finished: break
                 case let .failure(error):
-                    completion(.error(error))
+                    self.delegateQueue.async {
+                        completion(.error(error))
+                    }
                 }
+                self.isFetching = false
             }, receiveValue: { [weak self] glucose in
-                guard !glucose.isEmpty, let self = self else {
-                    completion(.noData)
+                guard let self = self else { return }
+                guard !glucose.isEmpty else {
+                    self.delegateQueue.async {
+                        completion(.noData)
+                    }
                     return
                 }
 
@@ -105,7 +115,9 @@ public class NightscoutAPIManager: CGMManager {
                 ).count == 1
 
                 guard !tooFlat else {
-                    completion(.error(CGMError.tooFlatData))
+                    self.delegateQueue.async {
+                        completion(.error(CGMError.tooFlatData))
+                    }
                     return
                 }
 
@@ -118,14 +130,13 @@ public class NightscoutAPIManager: CGMManager {
                 }
 
                 self.latestBackfill = newGlucose.first
-                self.isFetching = false
 
                 self.delegateQueue.async {
-                    if newSamples.count > 0 {
-                        completion(.newData(newSamples))
-                    } else {
+                    guard !newSamples.isEmpty else {
                         completion(.noData)
+                        return
                     }
+                    completion(.newData(newSamples))
                 }
             })
         }
