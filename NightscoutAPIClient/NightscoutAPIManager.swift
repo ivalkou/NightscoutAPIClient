@@ -108,10 +108,13 @@ public class NightscoutAPIManager: CGMManager {
                     return
                 }
 
-                let tooFlat = Set(
-                    glucose.filterDateRange(Date(timeIntervalSinceNow: -60 * 20), nil)
+                let checkRange = glucose.filterDateRange(Date(timeIntervalSinceNow: -60 * 20), nil)
+                let tooFlat =
+                    checkRange.count > 1 && Set(
+                        checkRange
                         .filter { $0.isStateValid }
                         .map { $0.filtered ?? 0 }
+                        .filter { $0 != 0 }
                 ).count == 1
 
                 guard !tooFlat else {
