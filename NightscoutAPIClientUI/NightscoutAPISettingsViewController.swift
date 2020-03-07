@@ -29,7 +29,8 @@ public final class NightscoutAPISettingsViewController: UIHostingController<Sett
         self.glucoseUnit = glucoseUnit
         self.viewModel = SettingsViewModel(
             url: cgmManager.nightscoutService.url?.absoluteString ?? "",
-            upload: cgmManager.shouldSyncToRemoteService
+            upload: cgmManager.shouldSyncToRemoteService,
+            filter: cgmManager.useFilter
         )
         let view = SettingsView(viewModel: self.viewModel)
         super.init(rootView: view)
@@ -66,10 +67,21 @@ public final class NightscoutAPISettingsViewController: UIHostingController<Sett
                 }
             }
 
+        let onFilter = viewModel.onFilter
+            .sink { [weak self] filter in
+                guard let self = self else { return }
+                self.cgmManager.useFilter = filter
+                self.cgmManager.delegateQueue.async {
+                    self.cgmManager.cgmManagerDelegate?
+                        .cgmManagerDidUpdateState(self.cgmManager)
+                }
+            }
+
         lifetime = AnyCancellable {
             onClose.cancel()
             onDelete.cancel()
             onUpload.cancel()
+            onFilter.cancel()
         }
     }
 

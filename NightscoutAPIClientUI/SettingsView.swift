@@ -15,13 +15,19 @@ final class SettingsViewModel: ObservableObject {
         didSet { onUpload.send(upload) }
     }
 
+    var filter: Bool {
+        didSet { onFilter.send(filter) }
+    }
+
     let onDelete = PassthroughSubject<Void, Never>()
     let onClose = PassthroughSubject<Void, Never>()
     let onUpload = PassthroughSubject<Bool, Never>()
+    let onFilter = PassthroughSubject<Bool, Never>()
 
-    init(url: String, upload: Bool) {
+    init(url: String, upload: Bool, filter: Bool) {
         self.url = url
         self.upload = upload
+        self.filter = filter
     }
 }
 
@@ -37,6 +43,14 @@ public struct SettingsView: View {
                     Text(viewModel.url)
                     Toggle(isOn: $viewModel.upload) {
                         Text("Sync to remote service")
+                    }
+                }
+
+                Section(
+                    footer: Text("Use Kalman filter to smooth out a sensor noize.")
+                ) {
+                    Toggle(isOn: $viewModel.filter) {
+                        Text("Use glucose filter")
                     }
                 }
 
@@ -65,6 +79,6 @@ public struct SettingsView: View {
 
 struct SettingsView_Previews: PreviewProvider {
     static var previews: some View {
-        SettingsView(viewModel: SettingsViewModel(url: "https://cgm.example.com", upload: true)).environment(\.colorScheme, .dark)
+        SettingsView(viewModel: SettingsViewModel(url: "https://cgm.example.com", upload: false, filter: false)).environment(\.colorScheme, .dark)
     }
 }

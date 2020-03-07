@@ -17,6 +17,7 @@ public class NightscoutAPIManager: CGMManager {
 
     private enum Config {
         static var shouldSyncKey = "NightscoutAPIClient.shouldSync"
+        static var useFilterKey = "NightscoutAPIClient.useFilter"
     }
 
     public static var managerIdentifier = "NightscoutAPIClient"
@@ -30,9 +31,15 @@ public class NightscoutAPIManager: CGMManager {
     public convenience required init?(rawState: CGMManager.RawStateValue) {
         self.init()
         shouldSyncToRemoteService = rawState[Config.shouldSyncKey] as? Bool ?? false
+        useFilter = rawState[Config.useFilterKey] as? Bool ?? false
     }
 
-    public var rawState: CGMManager.RawStateValue { [Config.shouldSyncKey: shouldSyncToRemoteService] }
+    public var rawState: CGMManager.RawStateValue {
+        [
+            Config.shouldSyncKey: shouldSyncToRemoteService,
+            Config.useFilterKey: useFilter
+        ]
+    }
 
     private let keychain = KeychainManager()
 
@@ -61,6 +68,8 @@ public class NightscoutAPIManager: CGMManager {
     public var managedDataInterval: TimeInterval?
 
     public var shouldSyncToRemoteService = false
+
+    public var useFilter = false
 
     public private(set) var latestBackfill: BloodGlucose?
 
@@ -124,10 +133,28 @@ public class NightscoutAPIManager: CGMManager {
                     return
                 }
 
+                var filteredGlucose = glucose
+                /* Random noize for test
+                    .map { glu -> BloodGlucose in
+                        let noized = UInt16(Double(glu.glucose) + .random(in: -20...20))
+                        return BloodGlucose(sgv: noized, direction: glu.direction, date: glu.date, filtered: glu.filtered)
+                    }
+                 */
+                if self.useFilter {
+                    var filter = KalmanFilter(stateEstimatePrior: Double(glucose[0].glucose), errorCovariancePrior: 1)
+                    for (index, var item) in glucose.enumerated() {
+                        let prediction = filter.predict(stateTransitionModel: 1, controlInputModel: 0, controlVector: 0, covarianceOfProcessNoise: 0)
+                        let update = prediction.update(measurement: Double(item.glucose), observationModel: 1, covarienceOfObservationNoise: 10)
+                        filter = update
+                        item.sgv = UInt16(filter.stateEstimatePrior)
+                        filteredGlucose[index] = item
+                    }
+                }
+
                 let startDate = self.delegate.call { (delegate) -> Date? in
                     return delegate?.startDateToFilterNewData(for: self)?.addingTimeInterval(TimeInterval(minutes: 1))
                 }
-                let newGlucose = glucose.filterDateRange(startDate, nil)
+                let newGlucose = filteredGlucose.filterDateRange(startDate, nil)
                 let newSamples = newGlucose.filter({ $0.isStateValid }).map {
                     return NewGlucoseSample(date: $0.startDate, quantity: $0.quantity, isDisplayOnly: false, syncIdentifier: "\(Int($0.startDate.timeIntervalSince1970))", device: self.device)
                 }
