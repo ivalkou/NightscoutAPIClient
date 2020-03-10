@@ -134,21 +134,17 @@ public class NightscoutAPIManager: CGMManager {
                 }
 
                 var filteredGlucose = glucose
-                /* Random noize for test
-                    .map { glu -> BloodGlucose in
-                        let noized = UInt16(Double(glu.glucose) + .random(in: -20...20))
-                        return BloodGlucose(sgv: noized, direction: glu.direction, date: glu.date, filtered: glu.filtered)
-                    }
-                 */
                 if self.useFilter {
-                    var filter = KalmanFilter(stateEstimatePrior: Double(glucose[0].glucose), errorCovariancePrior: 1)
-                    for (index, var item) in glucose.enumerated() {
-                        let prediction = filter.predict(stateTransitionModel: 1, controlInputModel: 0, controlVector: 0, covarianceOfProcessNoise: 0)
-                        let update = prediction.update(measurement: Double(item.glucose), observationModel: 1, covarienceOfObservationNoise: 10)
+                    var filter = KalmanFilter(stateEstimatePrior: Double(glucose.last!.glucose), errorCovariancePrior: 5)
+                    filteredGlucose.removeAll()
+                    for var item in glucose.reversed() {
+                        let prediction = filter.predict(stateTransitionModel: 1, controlInputModel: 0, controlVector: 0, covarianceOfProcessNoise: 5)
+                        let update = prediction.update(measurement: Double(item.glucose), observationModel: 1, covarienceOfObservationNoise: 5)
                         filter = update
-                        item.sgv = UInt16(filter.stateEstimatePrior)
-                        filteredGlucose[index] = item
+                        item.sgv = UInt16(filter.stateEstimatePrior.rounded())
+                        filteredGlucose.append(item)
                     }
+                    filteredGlucose = filteredGlucose.reversed()
                 }
 
                 let startDate = self.delegate.call { (delegate) -> Date? in
