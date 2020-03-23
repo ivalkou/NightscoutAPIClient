@@ -16,8 +16,9 @@ public class NightscoutAPIManager: CGMManager {
     }
 
     private enum Config {
-        static var shouldSyncKey = "NightscoutAPIClient.shouldSync"
-        static var useFilterKey = "NightscoutAPIClient.useFilter"
+        static let shouldSyncKey = "NightscoutAPIClient.shouldSync"
+        static let useFilterKey = "NightscoutAPIClient.useFilter"
+        static let filterNoise = 2.5
     }
 
     public static var managerIdentifier = "NightscoutAPIClient"
@@ -135,11 +136,11 @@ public class NightscoutAPIManager: CGMManager {
 
                 var filteredGlucose = glucose
                 if self.useFilter {
-                    var filter = KalmanFilter(stateEstimatePrior: Double(glucose.last!.glucose), errorCovariancePrior: 5)
+                    var filter = KalmanFilter(stateEstimatePrior: Double(glucose.last!.glucose), errorCovariancePrior: Config.filterNoise)
                     filteredGlucose.removeAll()
                     for var item in glucose.reversed() {
-                        let prediction = filter.predict(stateTransitionModel: 1, controlInputModel: 0, controlVector: 0, covarianceOfProcessNoise: 5)
-                        let update = prediction.update(measurement: Double(item.glucose), observationModel: 1, covarienceOfObservationNoise: 5)
+                        let prediction = filter.predict(stateTransitionModel: 1, controlInputModel: 0, controlVector: 0, covarianceOfProcessNoise: Config.filterNoise)
+                        let update = prediction.update(measurement: Double(item.glucose), observationModel: 1, covarienceOfObservationNoise: Config.filterNoise)
                         filter = update
                         item.sgv = UInt16(filter.stateEstimatePrior.rounded())
                         filteredGlucose.append(item)
