@@ -9,6 +9,8 @@
 import SwiftUI
 import Combine
 
+private let frameworkBundle = Bundle(for: SettingsViewModel.self)
+
 final class SettingsViewModel: ObservableObject {
     let url: String
     var upload: Bool {
@@ -38,19 +40,19 @@ public struct SettingsView: View {
         NavigationView {
             Form {
                 Section(
-                    footer: Text("Select Sync option if you are using a source other than a remote service.")
+                    footer: Text("Select Upload option if you want the application to upload BG to Nightscout.", bundle: frameworkBundle)
                 ) {
                     Text(viewModel.url)
                     Toggle(isOn: $viewModel.upload) {
-                        Text("Sync to remote service")
+                        Text("Upload to remote service", bundle: frameworkBundle)
                     }
                 }
 
                 Section(
-                    footer: Text("Use Kalman filter to smooth out a sensor noize.")
+                    footer: Text("Use Kalman filter to smooth out a sensor noise.", bundle: frameworkBundle)
                 ) {
                     Toggle(isOn: $viewModel.filter) {
-                        Text("Use glucose filter")
+                        Text("Use glucose filter", bundle: frameworkBundle)
                     }
                 }
 
@@ -58,13 +60,18 @@ public struct SettingsView: View {
                     Button(action: {
                         self.viewModel.onDelete.send()
                     }) {
-                        Text("Delete CGM").foregroundColor(.red)
+                        Text("Delete CGM", bundle: frameworkBundle).foregroundColor(.red)
                     }
                 }
             }
-            .navigationBarTitle("Nightscout CGM")
+            .navigationBarTitle(Text("Nightscout CGM", bundle: frameworkBundle))
             .navigationBarItems(
-                leading: Button("Close") { self.viewModel.onClose.send() })
+                leading: Button(action: {
+                    self.viewModel.onClose.send()
+                }, label: {
+                    Text("Close", bundle: frameworkBundle)
+                })
+            )
         }
         
     }

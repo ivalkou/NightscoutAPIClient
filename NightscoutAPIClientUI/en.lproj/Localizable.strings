@@ -1,0 +1,9 @@
+"Upload to remote service" = "Upload to remote service";
+"Select Upload option if you are using a source other than a remote service." = "Select Upload option if you are using a source other than a remote service.";
+
+"Use glucose filter" = "Use glucose filter";
+"Use Kalman filter to smooth out a sensor noise." = "Use Kalman filter to smooth out a sensor noise.";
+
+"Delete CGM" = "Delete CGM";
+"Nightscout CGM" = "Nightscout CGM";
+"Close" = "Close";
