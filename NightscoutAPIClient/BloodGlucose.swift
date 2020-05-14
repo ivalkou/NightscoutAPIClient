@@ -42,6 +42,7 @@ public struct BloodGlucose: Codable {
     public let direction: Direction?
     public let date: Date
     public let filtered: Double?
+    public let noise: Int?
 
     public var glucose: UInt16 { sgv ?? 0 }
     
@@ -53,7 +54,7 @@ extension BloodGlucose: GlucoseValue {
 }
 
 extension BloodGlucose: SensorDisplayable {
-    public var isStateValid: Bool { glucose >= 39 }
+    public var isStateValid: Bool { glucose >= 39 && noise ?? 1 != 4 }
     public var trendType: GlucoseTrend? { direction?.trend }
     public var isLocal: Bool { false }
 }
