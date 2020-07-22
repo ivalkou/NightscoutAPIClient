@@ -29,7 +29,7 @@ final class NightscoutAPISetupViewController: UINavigationController, CGMManager
         }
         authVC.navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .cancel, target: self, action: #selector(cancel))
         authVC.navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .save, target: self, action: #selector(save))
-        authVC.navigationItem.rightBarButtonItem?.isEnabled = false
+        authVC.navigationItem.rightBarButtonItem?.isEnabled = authVC.authentication.url != nil
     }
 
     required init?(coder: NSCoder) {
