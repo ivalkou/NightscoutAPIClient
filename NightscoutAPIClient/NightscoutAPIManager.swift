@@ -142,7 +142,7 @@ public class NightscoutAPIManager: CGMManager {
                         let prediction = filter.predict(stateTransitionModel: 1, controlInputModel: 0, controlVector: 0, covarianceOfProcessNoise: Config.filterNoise)
                         let update = prediction.update(measurement: Double(item.glucose), observationModel: 1, covarienceOfObservationNoise: Config.filterNoise)
                         filter = update
-                        item.sgv = UInt16(filter.stateEstimatePrior.rounded())
+                        item.sgv = Int(filter.stateEstimatePrior.rounded())
                         filteredGlucose.append(item)
                     }
                     filteredGlucose = filteredGlucose.reversed()

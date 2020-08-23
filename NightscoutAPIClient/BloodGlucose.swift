@@ -38,13 +38,13 @@ public struct BloodGlucose: Codable {
         }
     }
 
-    public var sgv: UInt16?
+    public var sgv: Int?
     public let direction: Direction?
     public let date: Date
     public let filtered: Double?
     public let noise: Int?
 
-    public var glucose: UInt16 { sgv ?? 0 }
+    public var glucose: Int { sgv ?? 0 }
     
 }
 
