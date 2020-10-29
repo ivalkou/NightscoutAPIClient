@@ -11,6 +11,8 @@ import HealthKit
 import Combine
 
 public class NightscoutAPIManager: CGMManager {
+    public var glucoseDisplay: GlucoseDisplayable?
+    
     public enum CGMError: String, Error {
         case tooFlatData = "BG data is too flat."
     }
@@ -74,7 +76,7 @@ public class NightscoutAPIManager: CGMManager {
 
     public private(set) var latestBackfill: BloodGlucose?
 
-    public var sensorState: SensorDisplayable? { latestBackfill }
+    public var sensorState: GlucoseDisplayable? { latestBackfill }
 
     private var requestReceiver: Cancellable?
 
@@ -153,7 +155,7 @@ public class NightscoutAPIManager: CGMManager {
                 }
                 let newGlucose = filteredGlucose.filterDateRange(startDate, nil)
                 let newSamples = newGlucose.filter({ $0.isStateValid }).map {
-                    return NewGlucoseSample(date: $0.startDate, quantity: $0.quantity, isDisplayOnly: false, syncIdentifier: "\(Int($0.startDate.timeIntervalSince1970))", device: self.device)
+                    return NewGlucoseSample(date: $0.startDate, quantity: $0.quantity, isDisplayOnly: false, wasUserEntered: false, syncIdentifier: "\(Int($0.startDate.timeIntervalSince1970))", device: self.device)
                 }
 
                 self.latestBackfill = newGlucose.first
@@ -204,4 +206,15 @@ public class NightscoutAPIManager: CGMManager {
         }
         updateTimer.resume()
     }
+}
+
+// MARK: - AlertResponder implementation
+extension NightscoutAPIManager {
+    public func acknowledgeAlert(alertIdentifier: Alert.AlertIdentifier) { }
+}
+
+// MARK: - AlertSoundVendor implementation
+extension NightscoutAPIManager {
+    public func getSoundBaseURL() -> URL? { return nil }
+    public func getSounds() -> [Alert.Sound] { return [] }
 }

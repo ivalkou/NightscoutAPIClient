@@ -63,17 +63,19 @@ class CarbMathTests: XCTestCase {
             } else {
                 absorptionTime = nil
             }
+            let startAt = dateFormatter.date(from: $0["start_at"] as! String)!
             return NewCarbEntry(
+                date: startAt,
                 quantity: HKQuantity(unit: HKUnit(from: $0["unit"] as! String), doubleValue: $0["amount"] as! Double),
-                startDate: dateFormatter.date(from: $0["start_at"] as! String)!,
+                startDate: startAt,
                 foodType: nil,
                 absorptionTime: absorptionTime
             )
         }
     }
 
-    private func loadEffectOutputFixture() -> [GlucoseEffect] {
-        let fixture: [JSONDictionary] = loadFixture("carb_effect_from_history_output")
+    private func loadEffectOutputFixture(_ name: String) -> [GlucoseEffect] {
+        let fixture: [JSONDictionary] = loadFixture(name)
         let dateFormatter = ISO8601DateFormatter.localTimeDate()
 
         return fixture.map {
@@ -114,10 +116,12 @@ class CarbMathTests: XCTestCase {
             medium: TimeInterval(hours: 2),
             slow: TimeInterval(hours: 4)
         )
-        
+
+        let startDate = inputICE[0].startDate
         let carbEntry = NewCarbEntry(
+            date: startDate,
             quantity: HKQuantity(unit: HKUnit.gram(), doubleValue: 0),
-            startDate: inputICE[0].startDate,
+            startDate: startDate,
             foodType: nil,
             absorptionTime: TimeInterval(minutes: 120)
         )
@@ -128,7 +132,11 @@ class CarbMathTests: XCTestCase {
             insulinSensitivity: insulinSensitivities,
             absorptionTimeOverrun: defaultAbsorptionTimes.slow / defaultAbsorptionTimes.medium,
             defaultAbsorptionTime: defaultAbsorptionTimes.medium,
-            delay: TimeInterval(minutes: 0)
+            delay: TimeInterval(minutes: 0),
+            initialAbsorptionTimeOverrun: 1.5,
+            absorptionModel: LinearAbsorption(),
+            adaptiveAbsorptionRateEnabled: false,
+            adaptiveRateStandbyIntervalFraction: 0.2
         )
         
         XCTAssertEqual(statuses.count, 1)
@@ -137,10 +145,10 @@ class CarbMathTests: XCTestCase {
 
     func testCarbEffectFromHistory() {
         let input = loadHistoryFixture("carb_effect_from_history_input")
-        let output = loadEffectOutputFixture()
+        let output = loadEffectOutputFixture("carb_effect_from_history_output")
         let (carbRatios, insulinSensitivities) = loadSchedules()
-
-        let effects = input.glucoseEffects(carbRatios: carbRatios, insulinSensitivities: insulinSensitivities, defaultAbsorptionTime: TimeInterval(minutes: 180))
+        
+        let effects = input.glucoseEffects(carbRatios: carbRatios, insulinSensitivities: insulinSensitivities, defaultAbsorptionTime: TimeInterval(minutes: 180), absorptionModel: ParabolicAbsorption())
 
         XCTAssertEqual(output.count, effects.count)
 
@@ -153,14 +161,64 @@ class CarbMathTests: XCTestCase {
     func testCarbsOnBoardFromHistory() {
         let input = loadHistoryFixture("carb_effect_from_history_input")
         let output = loadCOBOutputFixture("carbs_on_board_output")
-
-        let cob = input.carbsOnBoard(defaultAbsorptionTime: TimeInterval(minutes: 180), delay: TimeInterval(minutes: 10), delta: TimeInterval(minutes: 5))
+        
+        let cob = input.carbsOnBoard(defaultAbsorptionTime: TimeInterval(minutes: 180), absorptionModel: ParabolicAbsorption(), delay: TimeInterval(minutes: 10), delta: TimeInterval(minutes: 5))
 
         XCTAssertEqual(output.count, cob.count)
 
         for (expected, calculated) in zip(output, cob) {
             XCTAssertEqual(expected.startDate, calculated.startDate)
             XCTAssertEqual(expected.quantity.doubleValue(for: HKUnit.gram()), calculated.quantity.doubleValue(for: HKUnit.gram()), accuracy: Double(Float.ulpOfOne))
+        }
+    }
+    
+    func testDynamicGlucoseEffectAbsorptionNoneObserved() {
+        let inputICE = loadICEInputFixture("ice_35_min_input")
+        let carbEntries = loadCarbEntryFixture()
+        let output = loadEffectOutputFixture("dynamic_glucose_effect_none_observed_output")
+
+        let (carbRatios, insulinSensitivities) = loadSchedules()
+        let defaultAbsorptionTimes = CarbStore.DefaultAbsorptionTimes(
+            fast: TimeInterval(hours: 1),
+            medium: TimeInterval(hours: 2),
+            slow: TimeInterval(hours: 4)
+        )
+        
+        let futureCarbEntry = carbEntries[2]
+        
+        let statuses = [futureCarbEntry].map(
+            to: inputICE,
+            carbRatio: carbRatios,
+            insulinSensitivity: insulinSensitivities,
+            absorptionTimeOverrun: defaultAbsorptionTimes.slow / defaultAbsorptionTimes.medium,
+            defaultAbsorptionTime: defaultAbsorptionTimes.medium,
+            delay: TimeInterval(minutes: 0),
+            initialAbsorptionTimeOverrun: defaultAbsorptionTimes.slow / defaultAbsorptionTimes.medium,
+            absorptionModel: LinearAbsorption(),
+            adaptiveAbsorptionRateEnabled: false,
+            adaptiveRateStandbyIntervalFraction: 0.2
+        )
+        
+        XCTAssertEqual(statuses.count, 1)
+        
+        // Full absorption remains
+        XCTAssertEqual(statuses[0].absorption!.estimatedTimeRemaining, TimeInterval(hours: 4), accuracy: 1)
+        
+        let effects = statuses.dynamicGlucoseEffects(
+            from: inputICE[0].startDate,
+            to: inputICE[0].startDate.addingTimeInterval(TimeInterval(hours: 6)),
+            carbRatios: carbRatios,
+            insulinSensitivities: insulinSensitivities,
+            defaultAbsorptionTime: defaultAbsorptionTimes.medium,
+            absorptionModel: LinearAbsorption(),
+            delay: 0
+        )
+
+        XCTAssertEqual(output.count, effects.count)
+
+        for (expected, calculated) in zip(output, effects) {
+            XCTAssertEqual(expected.startDate, calculated.startDate)
+            XCTAssertEqual(expected.quantity.doubleValue(for: .milligramsPerDeciliter), calculated.quantity.doubleValue(for: .milligramsPerDeciliter), accuracy: Double(Float.ulpOfOne))
         }
     }
     
@@ -184,7 +242,11 @@ class CarbMathTests: XCTestCase {
             insulinSensitivity: insulinSensitivities,
             absorptionTimeOverrun: defaultAbsorptionTimes.slow / defaultAbsorptionTimes.medium,
             defaultAbsorptionTime: defaultAbsorptionTimes.medium,
-            delay: TimeInterval(minutes: 0)
+            delay: TimeInterval(minutes: 0),
+            initialAbsorptionTimeOverrun: defaultAbsorptionTimes.slow / defaultAbsorptionTimes.medium,
+            absorptionModel: LinearAbsorption(),
+            adaptiveAbsorptionRateEnabled: false,
+            adaptiveRateStandbyIntervalFraction: 0.2
         )
         
         XCTAssertEqual(statuses.count, 1)
@@ -196,6 +258,7 @@ class CarbMathTests: XCTestCase {
             from: inputICE[0].startDate,
             to: inputICE[0].startDate.addingTimeInterval(TimeInterval(hours: 6)),
             defaultAbsorptionTime: defaultAbsorptionTimes.medium,
+            absorptionModel: LinearAbsorption(),
             delay: TimeInterval(minutes: 10),
             delta: TimeInterval(minutes: 5))
 
@@ -223,14 +286,18 @@ class CarbMathTests: XCTestCase {
             medium: TimeInterval(hours: 2),
             slow: TimeInterval(hours: 4)
         )
-
+        
         let statuses = [carbEntries[0]].map(
             to: inputICE,
             carbRatio: carbRatios,
             insulinSensitivity: insulinSensitivities,
             absorptionTimeOverrun: defaultAbsorptionTimes.slow / defaultAbsorptionTimes.medium,
             defaultAbsorptionTime: defaultAbsorptionTimes.medium,
-            delay: TimeInterval(minutes: 0))
+            delay: TimeInterval(minutes: 0),
+            initialAbsorptionTimeOverrun: defaultAbsorptionTimes.slow / defaultAbsorptionTimes.medium,
+            absorptionModel: LinearAbsorption(),
+            adaptiveAbsorptionRateEnabled: false,
+            adaptiveRateStandbyIntervalFraction: 0.2)
         
         XCTAssertEqual(statuses.count, 1)
         
@@ -245,6 +312,7 @@ class CarbMathTests: XCTestCase {
             from: inputICE[0].startDate,
             to: inputICE[0].startDate.addingTimeInterval(TimeInterval(hours: 6)),
             defaultAbsorptionTime: defaultAbsorptionTimes.medium,
+            absorptionModel: LinearAbsorption(),
             delay: TimeInterval(minutes: 10),
             delta: TimeInterval(minutes: 5)
         )
@@ -260,6 +328,56 @@ class CarbMathTests: XCTestCase {
         XCTAssertEqual(carbsOnBoard[2].quantity.doubleValue(for: unit), 44, accuracy: 1)
         XCTAssertEqual(carbsOnBoard[25].quantity.doubleValue(for: unit), 9, accuracy: 1)
         XCTAssertEqual(carbsOnBoard.last!.quantity.doubleValue(for: unit), 0, accuracy: 1)
+    }
+    
+    func testDynamicGlucoseEffectAbsorptionPartiallyObserved() {
+        let inputICE = loadICEInputFixture("ice_35_min_input")
+        let carbEntries = loadCarbEntryFixture()
+        let output = loadEffectOutputFixture("dynamic_glucose_effect_partially_observed_output")
+
+        let (carbRatios, insulinSensitivities) = loadSchedules()
+        let defaultAbsorptionTimes = CarbStore.DefaultAbsorptionTimes(
+            fast: TimeInterval(hours: 1),
+            medium: TimeInterval(hours: 2),
+            slow: TimeInterval(hours: 4)
+        )
+        
+        let statuses = [carbEntries[0]].map(
+            to: inputICE,
+            carbRatio: carbRatios,
+            insulinSensitivity: insulinSensitivities,
+            absorptionTimeOverrun: defaultAbsorptionTimes.slow / defaultAbsorptionTimes.medium,
+            defaultAbsorptionTime: defaultAbsorptionTimes.medium,
+            delay: TimeInterval(minutes: 0),
+            initialAbsorptionTimeOverrun: defaultAbsorptionTimes.slow / defaultAbsorptionTimes.medium,
+            absorptionModel: LinearAbsorption(),
+            adaptiveAbsorptionRateEnabled: false,
+            adaptiveRateStandbyIntervalFraction: 0.2)
+        
+        XCTAssertEqual(statuses.count, 1)
+        
+        XCTAssertEqual(statuses[0].absorption!.estimatedTimeRemaining, 8509, accuracy: 1)
+
+        let absorption = statuses[0].absorption!
+        let unit = HKUnit.gram()
+
+        XCTAssertEqual(absorption.observed.doubleValue(for: unit), 18, accuracy: Double(Float.ulpOfOne))
+        
+        let effects = statuses.dynamicGlucoseEffects(
+            from: inputICE[0].startDate,
+            to: inputICE[0].startDate.addingTimeInterval(TimeInterval(hours: 6)),
+            carbRatios: carbRatios,
+            insulinSensitivities: insulinSensitivities,
+            defaultAbsorptionTime: defaultAbsorptionTimes.medium,
+            absorptionModel: LinearAbsorption()
+        )
+
+        XCTAssertEqual(output.count, effects.count)
+
+        for (expected, calculated) in zip(output, effects) {
+            XCTAssertEqual(expected.startDate, calculated.startDate)
+            XCTAssertEqual(expected.quantity.doubleValue(for: .milligramsPerDeciliter), calculated.quantity.doubleValue(for: .milligramsPerDeciliter), accuracy: Double(Float.ulpOfOne))
+        }
     }
     
     
@@ -281,7 +399,11 @@ class CarbMathTests: XCTestCase {
             insulinSensitivity: insulinSensitivities,
             absorptionTimeOverrun: defaultAbsorptionTimes.slow / defaultAbsorptionTimes.medium,
             defaultAbsorptionTime: defaultAbsorptionTimes.medium,
-            delay: TimeInterval(minutes: 0)
+            delay: TimeInterval(minutes: 0),
+            initialAbsorptionTimeOverrun: defaultAbsorptionTimes.slow / defaultAbsorptionTimes.medium,
+            absorptionModel: LinearAbsorption(),
+            adaptiveAbsorptionRateEnabled: false,
+            adaptiveRateStandbyIntervalFraction: 0.2
         )
         
         XCTAssertEqual(statuses.count, 1)
@@ -300,6 +422,7 @@ class CarbMathTests: XCTestCase {
             from: inputICE[0].startDate,
             to: inputICE[0].startDate.addingTimeInterval(TimeInterval(hours: 6)),
             defaultAbsorptionTime: defaultAbsorptionTimes.medium,
+            absorptionModel: LinearAbsorption(),
             delay: TimeInterval(minutes: 10),
             delta: TimeInterval(minutes: 5)
         )
@@ -320,6 +443,60 @@ class CarbMathTests: XCTestCase {
         XCTAssertEqual(carbsOnBoard[30].quantity.doubleValue(for: unit), 0, accuracy: 1)
     }
     
+    func testDynamicGlucoseEffectsAbsorptionFullyObserved() {
+        let inputICE = loadICEInputFixture("ice_1_hour_input")
+        let carbEntries = loadCarbEntryFixture()
+        let output = loadEffectOutputFixture("dynamic_glucose_effect_fully_observed_output")
+
+        let (carbRatios, insulinSensitivities) = loadSchedules()
+        let defaultAbsorptionTimes = CarbStore.DefaultAbsorptionTimes(
+            fast: TimeInterval(hours: 1),
+            medium: TimeInterval(hours: 2),
+            slow: TimeInterval(hours: 4)
+        )
+        
+        let statuses = [carbEntries[0]].map(
+            to: inputICE,
+            carbRatio: carbRatios,
+            insulinSensitivity: insulinSensitivities,
+            absorptionTimeOverrun: defaultAbsorptionTimes.slow / defaultAbsorptionTimes.medium,
+            defaultAbsorptionTime: defaultAbsorptionTimes.medium,
+            delay: TimeInterval(minutes: 0),
+            initialAbsorptionTimeOverrun: defaultAbsorptionTimes.slow / defaultAbsorptionTimes.medium,
+            absorptionModel: LinearAbsorption(),
+            adaptiveAbsorptionRateEnabled: false,
+            adaptiveRateStandbyIntervalFraction: 0.2
+        )
+        
+        XCTAssertEqual(statuses.count, 1)
+        XCTAssertNotNil(statuses[0].absorption)
+        
+        // No remaining absorption
+        XCTAssertEqual(statuses[0].absorption!.estimatedTimeRemaining, 0, accuracy: 1)
+        
+        let absorption = statuses[0].absorption!
+        let unit = HKUnit.gram()
+        
+        // All should be absorbed
+        XCTAssertEqual(absorption.observed.doubleValue(for: unit), 44, accuracy: 1)
+        
+        let effects = statuses.dynamicGlucoseEffects(
+            from: inputICE[0].startDate,
+            to: inputICE[0].startDate.addingTimeInterval(TimeInterval(hours: 6)),
+            carbRatios: carbRatios,
+            insulinSensitivities: insulinSensitivities,
+            defaultAbsorptionTime: defaultAbsorptionTimes.medium,
+            absorptionModel: LinearAbsorption()
+        )
+
+        XCTAssertEqual(output.count, effects.count)
+
+        for (expected, calculated) in zip(output, effects) {
+            XCTAssertEqual(expected.startDate, calculated.startDate)
+            XCTAssertEqual(expected.quantity.doubleValue(for: .milligramsPerDeciliter), calculated.quantity.doubleValue(for: .milligramsPerDeciliter), accuracy: Double(Float.ulpOfOne))
+        }
+    }
+    
     func testDynamicAbsorptionNeverFullyObserved() {
         let inputICE = loadICEInputFixture("ice_slow_absorption")
         let carbEntries = loadCarbEntryFixture()
@@ -338,7 +515,11 @@ class CarbMathTests: XCTestCase {
             insulinSensitivity: insulinSensitivities,
             absorptionTimeOverrun: defaultAbsorptionTimes.slow / defaultAbsorptionTimes.medium,
             defaultAbsorptionTime: defaultAbsorptionTimes.medium,
-            delay: TimeInterval(minutes: 0))
+            delay: TimeInterval(minutes: 0),
+            initialAbsorptionTimeOverrun: defaultAbsorptionTimes.slow / defaultAbsorptionTimes.medium,
+            absorptionModel: LinearAbsorption(),
+            adaptiveAbsorptionRateEnabled: false,
+            adaptiveRateStandbyIntervalFraction: 0.2)
         
         XCTAssertEqual(statuses.count, 1)
         XCTAssertNotNil(statuses[0].absorption)
@@ -350,6 +531,7 @@ class CarbMathTests: XCTestCase {
             from: inputICE[0].startDate,
             to: inputICE[0].startDate.addingTimeInterval(TimeInterval(hours: 18)),
             defaultAbsorptionTime: defaultAbsorptionTimes.medium,
+            absorptionModel: LinearAbsorption(),
             delay: TimeInterval(minutes: 10),
             delta: TimeInterval(minutes: 5)
         )
@@ -366,6 +548,53 @@ class CarbMathTests: XCTestCase {
         XCTAssertEqual(carbsOnBoard.first!.quantity.doubleValue(for: unit), 0, accuracy: 1)
         XCTAssertEqual(carbsOnBoard[5].quantity.doubleValue(for: unit), 30, accuracy: 1)
         XCTAssertEqual(carbsOnBoard.last!.quantity.doubleValue(for: unit), 0, accuracy: 1)
+    }
+    
+    func testDynamicGlucoseEffectsAbsorptionNeverFullyObserved() {
+        let inputICE = loadICEInputFixture("ice_slow_absorption")
+        let carbEntries = loadCarbEntryFixture()
+        let output = loadEffectOutputFixture("dynamic_glucose_effect_never_fully_observed_output")
+
+        let (carbRatios, insulinSensitivities) = loadSchedules()
+        let defaultAbsorptionTimes = CarbStore.DefaultAbsorptionTimes(
+            fast: TimeInterval(hours: 1),
+            medium: TimeInterval(hours: 2),
+            slow: TimeInterval(hours: 4)
+        )
+        
+        let statuses = [carbEntries[1]].map(
+            to: inputICE,
+            carbRatio: carbRatios,
+            insulinSensitivity: insulinSensitivities,
+            absorptionTimeOverrun: defaultAbsorptionTimes.slow / defaultAbsorptionTimes.medium,
+            defaultAbsorptionTime: defaultAbsorptionTimes.medium,
+            delay: TimeInterval(minutes: 0),
+            initialAbsorptionTimeOverrun: defaultAbsorptionTimes.slow / defaultAbsorptionTimes.medium,
+            absorptionModel: LinearAbsorption(),
+            adaptiveAbsorptionRateEnabled: false,
+            adaptiveRateStandbyIntervalFraction: 0.2)
+        
+        XCTAssertEqual(statuses.count, 1)
+        XCTAssertNotNil(statuses[0].absorption)
+        
+        XCTAssertEqual(statuses[0].absorption!.estimatedTimeRemaining, 10488, accuracy: 1)
+        
+        // Check 12 hours later
+        let effects = statuses.dynamicGlucoseEffects(
+            from: inputICE[0].startDate,
+            to: inputICE[0].startDate.addingTimeInterval(TimeInterval(hours: 18)),
+            carbRatios: carbRatios,
+            insulinSensitivities: insulinSensitivities,
+            defaultAbsorptionTime: defaultAbsorptionTimes.medium,
+            absorptionModel: LinearAbsorption()
+        )
+
+        XCTAssertEqual(output.count, effects.count)
+
+        for (expected, calculated) in zip(output, effects) {
+            XCTAssertEqual(expected.startDate, calculated.startDate)
+            XCTAssertEqual(expected.quantity.doubleValue(for: .milligramsPerDeciliter), calculated.quantity.doubleValue(for: .milligramsPerDeciliter), accuracy: Double(Float.ulpOfOne))
+        }
     }
 
     func testGroupedByOverlappingAbsorptionTimeFromHistory() {
@@ -392,5 +621,320 @@ class CarbMathTests: XCTestCase {
         for (expected, calculated) in zip(output, grouped) {
             XCTAssertEqual(expected, calculated)
         }
-    }    
+    }
+    
+    // Aditional tests for nonlinear and adaptive-rate carb absorption models
+    
+    func testDynamicAbsorptionPiecewiseLinearNoneObserved() {
+        let inputICE = loadICEInputFixture("ice_35_min_input")
+        let carbEntries = loadCarbEntryFixture()
+        let output = loadCOBOutputFixture("ice_35_min_none_piecewiselinear_output")
+
+        let (carbRatios, insulinSensitivities) = loadSchedules()
+        let defaultAbsorptionTimes = CarbStore.DefaultAbsorptionTimes(
+            fast: TimeInterval(hours: 1),
+            medium: TimeInterval(hours: 2),
+            slow: TimeInterval(hours: 4)
+        )
+        
+        let futureCarbEntry = carbEntries[2]
+        
+        let statuses = [futureCarbEntry].map(
+            to: inputICE,
+            carbRatio: carbRatios,
+            insulinSensitivity: insulinSensitivities,
+            absorptionTimeOverrun: 1.5,
+            defaultAbsorptionTime: defaultAbsorptionTimes.medium,
+            delay: TimeInterval(minutes: 0),
+            initialAbsorptionTimeOverrun: 1.5,
+            absorptionModel: PiecewiseLinearAbsorption(),
+            adaptiveAbsorptionRateEnabled: false,
+            adaptiveRateStandbyIntervalFraction: 0.2
+        )
+        
+        XCTAssertEqual(statuses.count, 1)
+        
+        // Full absorption remains
+        XCTAssertEqual(statuses[0].absorption!.estimatedTimeRemaining, TimeInterval(hours: 3), accuracy: 1)
+        
+        let carbsOnBoard = statuses.dynamicCarbsOnBoard(
+            from: inputICE[0].startDate,
+            to: inputICE[0].startDate.addingTimeInterval(TimeInterval(hours: 6)),
+            defaultAbsorptionTime: defaultAbsorptionTimes.medium,
+            absorptionModel: PiecewiseLinearAbsorption(),
+            delay: TimeInterval(minutes: 10),
+            delta: TimeInterval(minutes: 5))
+
+        let unit = HKUnit.gram()
+
+        XCTAssertEqual(output.count, carbsOnBoard.count)
+
+        for (expected, calculated) in zip(output, carbsOnBoard) {
+            XCTAssertEqual(expected.startDate, calculated.startDate)
+            XCTAssertEqual(expected.quantity.doubleValue(for: HKUnit.gram()), calculated.quantity.doubleValue(for: HKUnit.gram()), accuracy: Double(Float.ulpOfOne))
+        }
+
+        XCTAssertEqual(carbsOnBoard.first!.quantity.doubleValue(for: unit), 0, accuracy: 1)
+        XCTAssertEqual(carbsOnBoard.last!.quantity.doubleValue(for: unit), 0, accuracy: 1)
+    }
+
+    func testDynamicAbsorptionPiecewiseLinearPartiallyObserved() {
+        let inputICE = loadICEInputFixture("ice_35_min_input")
+        let carbEntries = loadCarbEntryFixture()
+        let output = loadCOBOutputFixture("ice_35_min_partial_piecewiselinear_output")
+
+        let (carbRatios, insulinSensitivities) = loadSchedules()
+        let defaultAbsorptionTimes = CarbStore.DefaultAbsorptionTimes(
+            fast: TimeInterval(hours: 1),
+            medium: TimeInterval(hours: 2),
+            slow: TimeInterval(hours: 4)
+        )
+        
+        let statuses = [carbEntries[0]].map(
+            to: inputICE,
+            carbRatio: carbRatios,
+            insulinSensitivity: insulinSensitivities,
+            absorptionTimeOverrun: 1.5,
+            defaultAbsorptionTime: defaultAbsorptionTimes.medium,
+            delay: TimeInterval(minutes: 0),
+            initialAbsorptionTimeOverrun: 1.5,
+            absorptionModel: PiecewiseLinearAbsorption(),
+            adaptiveAbsorptionRateEnabled: false,
+            adaptiveRateStandbyIntervalFraction: 0.2)
+        
+        XCTAssertEqual(statuses.count, 1)
+        
+        XCTAssertEqual(statuses[0].absorption!.estimatedTimeRemaining, 7008, accuracy: 1)
+
+        let absorption = statuses[0].absorption!
+        let unit = HKUnit.gram()
+
+        XCTAssertEqual(absorption.observed.doubleValue(for: unit), 18, accuracy: Double(Float.ulpOfOne))
+        
+        let carbsOnBoard = statuses.dynamicCarbsOnBoard(
+            from: inputICE[0].startDate,
+            to: inputICE[0].startDate.addingTimeInterval(TimeInterval(hours: 6)),
+            defaultAbsorptionTime: defaultAbsorptionTimes.medium,
+            absorptionModel: PiecewiseLinearAbsorption(),
+            delay: TimeInterval(minutes: 10),
+            delta: TimeInterval(minutes: 5)
+        )
+
+        XCTAssertEqual(output.count, carbsOnBoard.count)
+
+        for (expected, calculated) in zip(output, carbsOnBoard) {
+            XCTAssertEqual(expected.startDate, calculated.startDate)
+            XCTAssertEqual(expected.quantity.doubleValue(for: HKUnit.gram()), calculated.quantity.doubleValue(for: HKUnit.gram()), accuracy: Double(Float.ulpOfOne))
+        }
+
+        XCTAssertEqual(carbsOnBoard.first!.quantity.doubleValue(for: unit), 0, accuracy: 1)
+        XCTAssertEqual(carbsOnBoard[2].quantity.doubleValue(for: unit), 44, accuracy: 1)
+        XCTAssertEqual(carbsOnBoard[20].quantity.doubleValue(for: unit), 5, accuracy: 1)
+        XCTAssertEqual(carbsOnBoard.last!.quantity.doubleValue(for: unit), 0, accuracy: 1)
+    }
+
+    func testDynamicAbsorptionPiecewiseLinearFullyObserved() {
+        let inputICE = loadICEInputFixture("ice_1_hour_input")
+        let carbEntries = loadCarbEntryFixture()
+        let output = loadCOBOutputFixture("ice_1_hour_output")
+
+        let (carbRatios, insulinSensitivities) = loadSchedules()
+        let defaultAbsorptionTimes = CarbStore.DefaultAbsorptionTimes(
+            fast: TimeInterval(hours: 1),
+            medium: TimeInterval(hours: 2),
+            slow: TimeInterval(hours: 4)
+        )
+        
+        let statuses = [carbEntries[0]].map(
+            to: inputICE,
+            carbRatio: carbRatios,
+            insulinSensitivity: insulinSensitivities,
+            absorptionTimeOverrun: 1.5,
+            defaultAbsorptionTime: defaultAbsorptionTimes.medium,
+            delay: TimeInterval(minutes: 0),
+            initialAbsorptionTimeOverrun: 1.5,
+            absorptionModel: PiecewiseLinearAbsorption(),
+            adaptiveAbsorptionRateEnabled: false,
+            adaptiveRateStandbyIntervalFraction: 0.2
+        )
+        
+        XCTAssertEqual(statuses.count, 1)
+        XCTAssertNotNil(statuses[0].absorption)
+        
+        // No remaining absorption
+        XCTAssertEqual(statuses[0].absorption!.estimatedTimeRemaining, 0, accuracy: 1)
+        
+        let absorption = statuses[0].absorption!
+        let unit = HKUnit.gram()
+        
+        // All should be absorbed
+        XCTAssertEqual(absorption.observed.doubleValue(for: unit), 44, accuracy: 1)
+        
+        let carbsOnBoard = statuses.dynamicCarbsOnBoard(
+            from: inputICE[0].startDate,
+            to: inputICE[0].startDate.addingTimeInterval(TimeInterval(hours: 6)),
+            defaultAbsorptionTime: defaultAbsorptionTimes.medium,
+            absorptionModel: PiecewiseLinearAbsorption(),
+            delay: TimeInterval(minutes: 10),
+            delta: TimeInterval(minutes: 5)
+        )
+
+        XCTAssertEqual(output.count, carbsOnBoard.count)
+
+        for (expected, calculated) in zip(output, carbsOnBoard) {
+            XCTAssertEqual(expected.startDate, calculated.startDate)
+            XCTAssertEqual(expected.quantity.doubleValue(for: HKUnit.gram()), calculated.quantity.doubleValue(for: HKUnit.gram()), accuracy: Double(Float.ulpOfOne))
+        }
+
+        XCTAssertEqual(carbsOnBoard[0].quantity.doubleValue(for: unit), 0, accuracy: 1)
+        XCTAssertEqual(carbsOnBoard[1].quantity.doubleValue(for: unit), 44, accuracy: 1)
+        XCTAssertEqual(carbsOnBoard[2].quantity.doubleValue(for: unit), 44, accuracy: 1)
+        XCTAssertEqual(carbsOnBoard[10].quantity.doubleValue(for: unit), 21, accuracy: 1)
+        XCTAssertEqual(carbsOnBoard[17].quantity.doubleValue(for: unit), 7, accuracy: 1)
+        XCTAssertEqual(carbsOnBoard[18].quantity.doubleValue(for: unit), 4, accuracy: 1)
+        XCTAssertEqual(carbsOnBoard[30].quantity.doubleValue(for: unit), 0, accuracy: 1)
+    }
+
+    func testDynamicAbsorptionPiecewiseLinearNeverFullyObserved() {
+        let inputICE = loadICEInputFixture("ice_slow_absorption")
+        let carbEntries = loadCarbEntryFixture()
+        let output = loadCOBOutputFixture("ice_slow_absorption_piecewiselinear_output")
+
+        let (carbRatios, insulinSensitivities) = loadSchedules()
+        let defaultAbsorptionTimes = CarbStore.DefaultAbsorptionTimes(
+            fast: TimeInterval(hours: 1),
+            medium: TimeInterval(hours: 2),
+            slow: TimeInterval(hours: 4)
+        )
+        
+        let statuses = [carbEntries[1]].map(
+            to: inputICE,
+            carbRatio: carbRatios,
+            insulinSensitivity: insulinSensitivities,
+            absorptionTimeOverrun: 1.5,
+            defaultAbsorptionTime: defaultAbsorptionTimes.medium,
+            delay: TimeInterval(minutes: 0),
+            initialAbsorptionTimeOverrun: 1.5,
+            absorptionModel: PiecewiseLinearAbsorption(),
+            adaptiveAbsorptionRateEnabled: false,
+            adaptiveRateStandbyIntervalFraction: 0.2)
+        
+        XCTAssertEqual(statuses.count, 1)
+        XCTAssertNotNil(statuses[0].absorption)
+        
+        XCTAssertEqual(statuses[0].absorption!.estimatedTimeRemaining, 6888, accuracy: 1)
+        
+        // Check 12 hours later
+        let carbsOnBoard = statuses.dynamicCarbsOnBoard(
+            from: inputICE[0].startDate,
+            to: inputICE[0].startDate.addingTimeInterval(TimeInterval(hours: 18)),
+            defaultAbsorptionTime: defaultAbsorptionTimes.medium,
+            absorptionModel: PiecewiseLinearAbsorption(),
+            delay: TimeInterval(minutes: 10),
+            delta: TimeInterval(minutes: 5)
+        )
+
+        let unit = HKUnit.gram()
+
+        XCTAssertEqual(output.count, carbsOnBoard.count)
+        
+        for (expected, calculated) in zip(output, carbsOnBoard) {
+            XCTAssertEqual(expected.startDate, calculated.startDate)
+            XCTAssertEqual(expected.quantity.doubleValue(for: HKUnit.gram()), calculated.quantity.doubleValue(for: HKUnit.gram()), accuracy: Double(Float.ulpOfOne))
+        }
+
+        XCTAssertEqual(carbsOnBoard.first!.quantity.doubleValue(for: unit), 0, accuracy: 1)
+        XCTAssertEqual(carbsOnBoard[5].quantity.doubleValue(for: unit), 30, accuracy: 1)
+        XCTAssertEqual(carbsOnBoard.last!.quantity.doubleValue(for: unit), 0, accuracy: 1)
+    }
+    
+    func testDynamicAbsorptionPiecewiseLinearAdaptiveRatePartiallyObserved() {
+        let inputICE = loadICEInputFixture("ice_35_min_input")
+        let carbEntries = loadCarbEntryFixture()
+        let output = loadCOBOutputFixture("ice_35_min_partial_piecewiselinear_adaptiverate_output")
+
+        let (carbRatios, insulinSensitivities) = loadSchedules()
+        let defaultAbsorptionTimes = CarbStore.DefaultAbsorptionTimes(
+            fast: TimeInterval(hours: 1),
+            medium: TimeInterval(hours: 2),
+            slow: TimeInterval(hours: 4)
+        )
+        
+        let statuses = [carbEntries[0]].map(
+            to: inputICE,
+            carbRatio: carbRatios,
+            insulinSensitivity: insulinSensitivities,
+            absorptionTimeOverrun: 1.5,
+            defaultAbsorptionTime: defaultAbsorptionTimes.medium,
+            delay: TimeInterval(minutes: 0),
+            initialAbsorptionTimeOverrun: 1.0,
+            absorptionModel: PiecewiseLinearAbsorption(),
+            adaptiveAbsorptionRateEnabled: true,
+            adaptiveRateStandbyIntervalFraction: 0.2)
+        
+        XCTAssertEqual(statuses.count, 1)
+        
+        XCTAssertEqual(statuses[0].absorption!.estimatedTimeRemaining, 3326, accuracy: 1)
+
+        let absorption = statuses[0].absorption!
+        let unit = HKUnit.gram()
+
+        XCTAssertEqual(absorption.observed.doubleValue(for: unit), 18, accuracy: Double(Float.ulpOfOne))
+        
+        let carbsOnBoard = statuses.dynamicCarbsOnBoard(
+            from: inputICE[0].startDate,
+            to: inputICE[0].startDate.addingTimeInterval(TimeInterval(hours: 6)),
+            defaultAbsorptionTime: defaultAbsorptionTimes.medium,
+            absorptionModel: PiecewiseLinearAbsorption(),
+            delay: TimeInterval(minutes: 10),
+            delta: TimeInterval(minutes: 5)
+        )
+
+        XCTAssertEqual(output.count, carbsOnBoard.count)
+
+        for (expected, calculated) in zip(output, carbsOnBoard) {
+            XCTAssertEqual(expected.startDate, calculated.startDate)
+            XCTAssertEqual(expected.quantity.doubleValue(for: HKUnit.gram()), calculated.quantity.doubleValue(for: HKUnit.gram()), accuracy: Double(Float.ulpOfOne))
+        }
+
+        XCTAssertEqual(carbsOnBoard.first!.quantity.doubleValue(for: unit), 0, accuracy: 1)
+        XCTAssertEqual(carbsOnBoard[2].quantity.doubleValue(for: unit), 44, accuracy: 1)
+        XCTAssertEqual(carbsOnBoard[10].quantity.doubleValue(for: unit), 15, accuracy: 1)
+        XCTAssertEqual(carbsOnBoard.last!.quantity.doubleValue(for: unit), 0, accuracy: 1)
+    }
+    
+    func testDynamicAbsorptionMultipleEntries() {
+        let inputICE = loadICEInputFixture("ice_35_min_input")
+        let carbEntries = loadCarbEntryFixture()
+
+        let (carbRatios, insulinSensitivities) = loadSchedules()
+        let defaultAbsorptionTimes = CarbStore.DefaultAbsorptionTimes(
+            fast: TimeInterval(hours: 1),
+            medium: TimeInterval(hours: 2),
+            slow: TimeInterval(hours: 4)
+        )
+        
+        let statuses = carbEntries.map(
+            to: inputICE,
+            carbRatio: carbRatios,
+            insulinSensitivity: insulinSensitivities,
+            absorptionTimeOverrun: defaultAbsorptionTimes.slow / defaultAbsorptionTimes.medium,
+            defaultAbsorptionTime: defaultAbsorptionTimes.medium,
+            delay: TimeInterval(minutes: 0),
+            initialAbsorptionTimeOverrun: defaultAbsorptionTimes.slow / defaultAbsorptionTimes.medium,
+            absorptionModel: LinearAbsorption(),
+            adaptiveAbsorptionRateEnabled: false,
+            adaptiveRateStandbyIntervalFraction: 0.2
+        )
+        
+        
+        // Tuple structure: (observed absorption, estimated time remaining)
+        let expected = [(16.193665456944906, 9100.254941363484), (1.806334543055097, 13532.959419333554) , (0, 14400)]
+        XCTAssertEqual(expected.count, statuses.count)
+        
+        for (expected, calculated) in zip(expected, statuses) {
+            XCTAssertEqual(expected.0, calculated.absorption?.observed.doubleValue(for: HKUnit.gram()))
+            XCTAssertEqual(expected.1, calculated.absorption?.estimatedTimeRemaining)
+        }
+    }
 }

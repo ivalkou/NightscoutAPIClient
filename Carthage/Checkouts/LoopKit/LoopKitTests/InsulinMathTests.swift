@@ -30,19 +30,25 @@ extension DoseUnit {
 
 class InsulinMathTests: XCTestCase {
 
-    let fixtureDateformatter = DateFormatter.descriptionFormatter
+    var fixtureDateformatter: DateFormatter!
+    
+    private let fixtureTimeZone = TimeZone(secondsFromGMT: -0 * 60 * 60)!
 
     private func fixtureDate(_ input: String) -> Date {
         return fixtureDateformatter.date(from: input)!
     }
 
+    override func setUp() {
+        fixtureDateformatter = DateFormatter.descriptionFormatter
+        fixtureDateformatter.timeZone = fixtureTimeZone
+    }
     
     private func printInsulinValues(_ insulinValues: [InsulinValue]) {
         print("\n\n")
         print(String(data: try! JSONSerialization.data(
             withJSONObject: insulinValues.map({ (value) -> [String: Any] in
                 return [
-                    "date": ISO8601DateFormatter.localTimeDate().string(from: value.startDate),
+                    "date": ISO8601DateFormatter.localTimeDate(timeZone: fixtureTimeZone).string(from: value.startDate),
                     "value": value.value,
                     "unit": "U"
                 ]
@@ -57,8 +63,8 @@ class InsulinMathTests: XCTestCase {
             withJSONObject: doses.map({ (value) -> [String: Any] in
                 var obj: [String: Any] = [
                     "type": value.type.pumpEventType!.rawValue,
-                    "start_at": ISO8601DateFormatter.localTimeDate().string(from: value.startDate),
-                    "end_at": ISO8601DateFormatter.localTimeDate().string(from: value.endDate),
+                    "start_at": ISO8601DateFormatter.localTimeDate(timeZone: fixtureTimeZone).string(from: value.startDate),
+                    "end_at": ISO8601DateFormatter.localTimeDate(timeZone: fixtureTimeZone).string(from: value.endDate),
                     "amount": value.value,
                     "unit": value.unit.rawValue
                 ]
@@ -80,7 +86,7 @@ class InsulinMathTests: XCTestCase {
     func loadReservoirFixture(_ resourceName: String) -> [NewReservoirValue] {
 
         let fixture: [JSONDictionary] = loadFixture(resourceName)
-        let dateFormatter = ISO8601DateFormatter.localTimeDate()
+        let dateFormatter = ISO8601DateFormatter.localTimeDate(timeZone: fixtureTimeZone)
 
         return fixture.map {
             return NewReservoirValue(startDate: dateFormatter.date(from: $0["date"] as! String)!, unitVolume: $0["amount"] as! Double)
@@ -89,7 +95,7 @@ class InsulinMathTests: XCTestCase {
 
     func loadDoseFixture(_ resourceName: String) -> [DoseEntry] {
         let fixture: [JSONDictionary] = loadFixture(resourceName)
-        let dateFormatter = ISO8601DateFormatter.localTimeDate()
+        let dateFormatter = ISO8601DateFormatter.localTimeDate(timeZone: fixtureTimeZone)
 
         return fixture.compactMap {
             guard let unit = DoseUnit(rawValue: $0["unit"] as! String),
@@ -105,6 +111,7 @@ class InsulinMathTests: XCTestCase {
                 endDate: dateFormatter.date(from: $0["end_at"] as! String)!,
                 value: $0["amount"] as! Double,
                 unit: unit,
+                deliveredUnits: $0["delivered"] as? Double,
                 description: $0["description"] as? String,
                 syncIdentifier: $0["raw"] as? String
             )
@@ -119,7 +126,7 @@ class InsulinMathTests: XCTestCase {
 
     func loadInsulinValueFixture(_ resourceName: String) -> [InsulinValue] {
         let fixture: [JSONDictionary] = loadFixture(resourceName)
-        let dateFormatter = ISO8601DateFormatter.localTimeDate()
+        let dateFormatter = ISO8601DateFormatter.localTimeDate(timeZone: fixtureTimeZone)
 
         return fixture.map {
             return InsulinValue(startDate: dateFormatter.date(from: $0["date"] as! String)!, value: $0["value"] as! Double)
@@ -128,7 +135,7 @@ class InsulinMathTests: XCTestCase {
 
     func loadGlucoseEffectFixture(_ resourceName: String) -> [GlucoseEffect] {
         let fixture: [JSONDictionary] = loadFixture(resourceName)
-        let dateFormatter = ISO8601DateFormatter.localTimeDate()
+        let dateFormatter = ISO8601DateFormatter.localTimeDate(timeZone: fixtureTimeZone)
 
         return fixture.map {
             return GlucoseEffect(startDate: dateFormatter.date(from: $0["date"] as! String)!, quantity: HKQuantity(unit: HKUnit(from: $0["unit"] as! String), doubleValue:$0["amount"] as! Double))
@@ -142,11 +149,11 @@ class InsulinMathTests: XCTestCase {
             return RepeatingScheduleValue(startTime: TimeInterval(minutes: $0["minutes"] as! Double), value: $0["rate"] as! Double)
         }
 
-        return BasalRateSchedule(dailyItems: items)!
+        return BasalRateSchedule(dailyItems: items, timeZone: fixtureTimeZone)!
     }
 
     var insulinSensitivitySchedule: InsulinSensitivitySchedule {
-        return InsulinSensitivitySchedule(unit: HKUnit.milligramsPerDeciliter, dailyItems: [RepeatingScheduleValue(startTime: 0.0, value: 40.0)])!
+        return InsulinSensitivitySchedule(unit: HKUnit.milligramsPerDeciliter, dailyItems: [RepeatingScheduleValue(startTime: 0.0, value: 40.0)], timeZone: fixtureTimeZone)!
     }
 
     func testDoseEntriesFromReservoirValues() {
@@ -168,7 +175,7 @@ class InsulinMathTests: XCTestCase {
     func testContinuousReservoirValues() {
         var input = loadReservoirFixture("reservoir_history_with_rewind_and_prime_input")
         let within = TimeInterval(minutes: 30)
-        let dateFormatter = ISO8601DateFormatter.localTimeDate()
+        let dateFormatter = ISO8601DateFormatter.localTimeDate(timeZone: fixtureTimeZone)
         XCTAssertTrue(input.isContinuous(from: dateFormatter.date(from: "2016-01-30T16:40:00")!, to: dateFormatter.date(from: "2016-01-30T20:40:00")!, within: within))
 
         // We don't assert whether it's "stale".
@@ -196,7 +203,7 @@ class InsulinMathTests: XCTestCase {
     func testNonContinuousReservoirValues() {
         let input = loadReservoirFixture("reservoir_history_with_continuity_holes")
 
-        let dateFormatter = ISO8601DateFormatter.localTimeDate()
+        let dateFormatter = ISO8601DateFormatter.localTimeDate(timeZone: fixtureTimeZone)
         XCTAssertTrue(input.isContinuous(from: dateFormatter.date(from: "2016-01-30T18:30:00")!, to: dateFormatter.date(from: "2016-01-30T20:40:00")!, within: .minutes(30)))
 
         XCTAssertFalse(input.isContinuous(from: dateFormatter.date(from: "2016-01-30T17:30:00")!, to: dateFormatter.date(from: "2016-01-30T20:40:00")!, within: .minutes(30)))
@@ -270,7 +277,8 @@ class InsulinMathTests: XCTestCase {
     }
     
     func testInsulinOnBoardLimitsForExponentialModel() {
-        let insulinModel = ExponentialInsulinModel(actionDuration: TimeInterval(minutes: 360), peakActivityTime: TimeInterval(minutes: 75))
+        let insulinModel = ExponentialInsulinModel(actionDuration: TimeInterval(minutes: 360), peakActivityTime: TimeInterval(minutes: 75), delay: TimeInterval(minutes: 0))
+        let childModel = ExponentialInsulinModel(actionDuration: TimeInterval(minutes: 360), peakActivityTime: TimeInterval(minutes: 65), delay: TimeInterval(minutes: 0))
         
         XCTAssertEqual(1, insulinModel.percentEffectRemaining(at: .minutes(-1)), accuracy: 0.001)
         XCTAssertEqual(1, insulinModel.percentEffectRemaining(at: .minutes(0)), accuracy: 0.001)
@@ -279,6 +287,9 @@ class InsulinMathTests: XCTestCase {
         
         // Test random point
         XCTAssertEqual(0.5110493617156, insulinModel.percentEffectRemaining(at: .minutes(108)), accuracy: 0.001)
+        
+        // Test for child curve
+        XCTAssertEqual(0.6002510111374046, childModel.percentEffectRemaining(at: .minutes(82)), accuracy: 0.001)
 
     }
     
@@ -442,7 +453,6 @@ class InsulinMathTests: XCTestCase {
     func testGlucoseEffectFromBolus() {
         let input = loadDoseFixture("bolus_dose")
         let output = loadGlucoseEffectFixture("effect_from_bolus_output")
-        let insulinSensitivitySchedule = self.insulinSensitivitySchedule
         let insulinModel = WalshInsulinModel(actionDuration: TimeInterval(hours: 4))
 
         measure {
@@ -462,7 +472,6 @@ class InsulinMathTests: XCTestCase {
     func testGlucoseEffectFromShortTempBasal() {
         let input = loadDoseFixture("short_basal_dose")
         let output = loadGlucoseEffectFixture("effect_from_bolus_output")
-        let insulinSensitivitySchedule = self.insulinSensitivitySchedule
         let insulinModel = WalshInsulinModel(actionDuration: TimeInterval(hours: 4))
 
         measure {
@@ -482,7 +491,6 @@ class InsulinMathTests: XCTestCase {
     func testGlucoseEffectFromTempBasal() {
         let input = loadDoseFixture("basal_dose")
         let output = loadGlucoseEffectFixture("effect_from_basal_output")
-        let insulinSensitivitySchedule = self.insulinSensitivitySchedule
         let insulinModel = WalshInsulinModel(actionDuration: TimeInterval(hours: 4))
 
         measure {
@@ -498,11 +506,25 @@ class InsulinMathTests: XCTestCase {
             XCTAssertEqual(expected.quantity.doubleValue(for: HKUnit.milligramsPerDeciliter), calculated.quantity.doubleValue(for: HKUnit.milligramsPerDeciliter), accuracy: 1.0, String(describing: expected.startDate))
         }
     }
+    
+    func testGlucoseEffectFromTempBasalExponential() {
+        let input = loadDoseFixture("basal_dose_with_delivered")
+        let output = loadGlucoseEffectFixture("effect_from_basal_output_exponential")
+        let insulinModel = ExponentialInsulinModel(actionDuration: 21600.0, peakActivityTime: 4500.0)
+
+        let effects = input.glucoseEffects(insulinModel: insulinModel, insulinSensitivity: insulinSensitivitySchedule)
+
+        XCTAssertEqual(output.count, effects.count)
+
+        for (expected, calculated) in zip(output, effects) {
+            XCTAssertEqual(expected.startDate, calculated.startDate)
+            XCTAssertEqual(expected.quantity.doubleValue(for: HKUnit.milligramsPerDeciliter), calculated.quantity.doubleValue(for: HKUnit.milligramsPerDeciliter), accuracy: 1.0, String(describing: expected.startDate))
+        }
+    }
 
     func testGlucoseEffectFromHistory() {
         let input = loadDoseFixture("normalized_doses")
         let output = loadGlucoseEffectFixture("effect_from_history_output")
-        let insulinSensitivitySchedule = self.insulinSensitivitySchedule
         let insulinModel = WalshInsulinModel(actionDuration: TimeInterval(hours: 4))
 
         measure {
@@ -521,7 +543,6 @@ class InsulinMathTests: XCTestCase {
 
     func testGlucoseEffectFromNoDoses() {
         let input: [DoseEntry] = []
-        let insulinSensitivitySchedule = self.insulinSensitivitySchedule
         let insulinModel = WalshInsulinModel(actionDuration: TimeInterval(hours: 4))
 
         let effects = input.glucoseEffects(insulinModel: insulinModel, insulinSensitivity: insulinSensitivitySchedule)
@@ -537,7 +558,7 @@ class InsulinMathTests: XCTestCase {
     }
 
     func testTrimContinuingDoses() {
-        let dateFormatter = ISO8601DateFormatter.localTimeDate()
+        let dateFormatter = ISO8601DateFormatter.localTimeDate(timeZone: fixtureTimeZone)
         let input = loadDoseFixture("normalized_doses").reversed()
 
         // Last temp ends at 2015-10-15T22:29:50
@@ -552,7 +573,7 @@ class InsulinMathTests: XCTestCase {
     }
 
     func testDosesOverlayBasalProfile() {
-        let dateFormatter = ISO8601DateFormatter.localTimeDate()
+        let dateFormatter = ISO8601DateFormatter.localTimeDate(timeZone: fixtureTimeZone)
         let input = loadDoseFixture("reconcile_history_output").sorted { $0.startDate < $1.startDate }
         let output = loadDoseFixture("doses_overlay_basal_profile_output")
         let basals = loadBasalRateScheduleFixture("basal")

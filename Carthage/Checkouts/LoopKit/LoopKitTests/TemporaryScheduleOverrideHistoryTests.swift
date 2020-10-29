@@ -14,11 +14,14 @@ final class TemporaryScheduleOverrideHistoryTests: XCTestCase {
     // Midnight of an arbitrary date
     let referenceDate = Calendar.current.startOfDay(for: Date(timeIntervalSinceReferenceDate: .hours(100_000)))
 
-    let basalRateSchedule = BasalRateSchedule(dailyItems: [
-        RepeatingScheduleValue(startTime: .hours(0), value: 1.2),
-        RepeatingScheduleValue(startTime: .hours(6), value: 1.4),
-        RepeatingScheduleValue(startTime: .hours(20), value: 1.0)
-    ])!
+    let basalRateSchedule = BasalRateSchedule(
+        dailyItems: [
+            RepeatingScheduleValue(startTime: .hours(0), value: 1.2),
+            RepeatingScheduleValue(startTime: .hours(6), value: 1.4),
+            RepeatingScheduleValue(startTime: .hours(20), value: 1.0)
+        ],
+        timeZone: Calendar.current.timeZone
+    )!
 
     let history = TemporaryScheduleOverrideHistory()
 
@@ -29,7 +32,7 @@ final class TemporaryScheduleOverrideHistoryTests: XCTestCase {
         recordedAt enableDateOffset: TimeInterval? = nil
     ) {
         let settings = TemporaryScheduleOverrideSettings(unit: .milligramsPerDeciliter, targetRange: nil, insulinNeedsScaleFactor: scaleFactor)
-        let override = TemporaryScheduleOverride(context: .custom, settings: settings, startDate: referenceDate + offset, duration: duration)
+        let override = TemporaryScheduleOverride(context: .custom, settings: settings, startDate: referenceDate + offset, duration: duration, enactTrigger: .local, syncIdentifier: UUID())
         let enableDate: Date
         if let enableDateOffset = enableDateOffset {
             enableDate = referenceDate + enableDateOffset
@@ -46,7 +49,6 @@ final class TemporaryScheduleOverrideHistoryTests: XCTestCase {
     private func historyResolves(to expected: BasalRateSchedule, referenceDateOffset: TimeInterval = 0) -> Bool {
         let referenceDate = self.referenceDate + referenceDateOffset
         let actual = history.resolvingRecentBasalSchedule(basalRateSchedule, relativeTo: referenceDate)
-        print(actual)
         return actual.equals(expected, accuracy: 1e-6)
     }
 
@@ -156,7 +158,7 @@ final class TemporaryScheduleOverrideHistoryTests: XCTestCase {
             RepeatingScheduleValue(startTime: .hours(2), value: 1.8),
             RepeatingScheduleValue(startTime: .hours(5), value: 1.2),
             RepeatingScheduleValue(startTime: .hours(6), value: 2.8),
-            RepeatingScheduleValue(startTime: .hours(8), value: 1.4),
+            RepeatingScheduleValue(startTime: .hours(10), value: 1.4),
             RepeatingScheduleValue(startTime: .hours(20), value: 1.0)
         ])!
 
@@ -204,8 +206,8 @@ final class TemporaryScheduleOverrideHistoryTests: XCTestCase {
         let expected = BasalRateSchedule(dailyItems: [
             RepeatingScheduleValue(startTime: .hours(0), value: 1.8),
             RepeatingScheduleValue(startTime: .hours(6), value: 2.1),
-            RepeatingScheduleValue(startTime: .hours(10), value: 1.4),
-            RepeatingScheduleValue(startTime: .hours(18), value: 2.1),
+            RepeatingScheduleValue(startTime: .hours(12), value: 1.4),
+            RepeatingScheduleValue(startTime: .hours(16), value: 2.1),
             RepeatingScheduleValue(startTime: .hours(20), value: 1.5)
         ])!
 
@@ -219,11 +221,8 @@ final class TemporaryScheduleOverrideHistoryTests: XCTestCase {
             RepeatingScheduleValue(startTime: .hours(0), value: 1.8),
             RepeatingScheduleValue(startTime: .hours(4), value: 1.2),
             RepeatingScheduleValue(startTime: .hours(6), value: 1.4),
-            RepeatingScheduleValue(startTime: .hours(20), value: 1.0),
-            RepeatingScheduleValue(startTime: .hours(22), value: 1.5),
+            RepeatingScheduleValue(startTime: .hours(20), value: 1.5),
         ])!
-
-        print(expected)
 
         XCTAssert(historyResolves(to: expected, referenceDateOffset: .hours(6)))
     }
@@ -244,4 +243,38 @@ final class TemporaryScheduleOverrideHistoryTests: XCTestCase {
 
         XCTAssert(historyResolves(to: expected, referenceDateOffset: .hours(6)))
     }
+    
+    func testQuery() {
+        var (overrides, deletedOverrides, newAnchor) = history.queryByAnchor(nil)
+        
+        XCTAssertEqual(0, overrides.count)
+        XCTAssertEqual(0, deletedOverrides.count)
+        
+        recordOverride(beginningAt: .hours(2), duration: .finite(.hours(8)), insulinNeedsScaleFactor: 1.5)
+        recordOverrideDisable(at: .hours(4))
+        recordOverride(beginningAt: .hours(7), duration: .finite(.hours(1)), insulinNeedsScaleFactor: 1.5)
+        
+        (overrides, deletedOverrides, newAnchor) = history.queryByAnchor(newAnchor)
+        
+        XCTAssertEqual(0, deletedOverrides.count)
+        XCTAssertEqual(2, overrides.count)
+        
+        XCTAssertEqual(TimeInterval(hours: 2), overrides[0].duration.timeInterval, accuracy: 1)
+    }
+
+    func testQueryOfDeletedOverrides() {
+        var (overrides, deletedOverrides, newAnchor) = history.queryByAnchor(nil)
+        
+        XCTAssertEqual(0, overrides.count)
+        XCTAssertEqual(0, deletedOverrides.count)
+        
+        recordOverride(beginningAt: .hours(2), duration: .finite(.hours(8)), insulinNeedsScaleFactor: 1.5)
+        recordOverrideDisable(at: .hours(1))
+        
+        (overrides, deletedOverrides, newAnchor) = history.queryByAnchor(newAnchor)
+        
+        XCTAssertEqual(0, overrides.count)
+        XCTAssertEqual(1, deletedOverrides.count)
+    }
+
 }

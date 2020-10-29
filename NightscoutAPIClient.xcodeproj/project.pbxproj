@@ -9,6 +9,10 @@
 /* Begin PBXBuildFile section */
 		06E10A172360DBCC009B6FED /* LoopKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38E30FCC2358C28900DAB3A0 /* LoopKit.framework */; };
 		06E10A192360DBCE009B6FED /* NightscoutAPIClient.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38F61399234F3066003FB95D /* NightscoutAPIClient.framework */; };
+		2CF3D45F254B32A4009CB01F /* LoopKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38F613B6234F333C003FB95D /* LoopKit.framework */; };
+		2CF3D460254B32A4009CB01F /* LoopKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 38F613B6234F333C003FB95D /* LoopKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		2CF3D461254B32A4009CB01F /* LoopKitUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2CF3D450254B325D009CB01F /* LoopKitUI.framework */; };
+		2CF3D462254B32A4009CB01F /* LoopKitUI.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 2CF3D450254B325D009CB01F /* LoopKitUI.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		384D8F022360862A00B1DD29 /* LocalizedString.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38F613BD234F3E83003FB95D /* LocalizedString.swift */; };
 		384D8F032360862F00B1DD29 /* TimeInterval.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38FA78D22350C80600780D61 /* TimeInterval.swift */; };
 		384D8F042360864100B1DD29 /* NightscoutAPIClient.h in Headers */ = {isa = PBXBuildFile; fileRef = 38F6139C234F3066003FB95D /* NightscoutAPIClient.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -66,7 +70,23 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		2CF3D463254B32A4009CB01F /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				2CF3D460254B32A4009CB01F /* LoopKit.framework in Embed Frameworks */,
+				2CF3D462254B32A4009CB01F /* LoopKitUI.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		2CF3D450254B325D009CB01F /* LoopKitUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = LoopKitUI.framework; path = Carthage/Build/iOS/LoopKitUI.framework; sourceTree = "<group>"; };
 		384D8EFA236085C300B1DD29 /* NightscoutAPIClient.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = NightscoutAPIClient.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		384D8F0A23608A4400B1DD29 /* HealthKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = HealthKit.framework; path = Platforms/WatchOS.platform/Developer/SDKs/WatchOS6.0.sdk/System/Library/Frameworks/HealthKit.framework; sourceTree = DEVELOPER_DIR; };
 		384D8F0D23608BEA00B1DD29 /* LoopKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = LoopKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -120,7 +140,9 @@
 			files = (
 				06E10A172360DBCC009B6FED /* LoopKit.framework in Frameworks */,
 				06E10A192360DBCE009B6FED /* NightscoutAPIClient.framework in Frameworks */,
+				2CF3D461254B32A4009CB01F /* LoopKitUI.framework in Frameworks */,
 				384D8F1123608C8100B1DD29 /* LoopKitUI.framework in Frameworks */,
+				2CF3D45F254B32A4009CB01F /* LoopKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -219,6 +241,7 @@
 		38F613B5234F3315003FB95D /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				2CF3D450254B325D009CB01F /* LoopKitUI.framework */,
 				384D8F0D23608BEA00B1DD29 /* LoopKit.framework */,
 				38FEB835236082B900F1E810 /* HealthKit.framework */,
 				384D8F0A23608A4400B1DD29 /* HealthKit.framework */,
@@ -296,6 +319,7 @@
 				38E30FB12358C25000DAB3A0 /* Sources */,
 				38E30FB22358C25000DAB3A0 /* Frameworks */,
 				38E30FB32358C25000DAB3A0 /* Resources */,
+				2CF3D463254B32A4009CB01F /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -578,6 +602,10 @@
 				DYLIB_COMPATIBILITY_VERSION = 1;
 				DYLIB_CURRENT_VERSION = 1;
 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Carthage/Build/iOS",
+				);
 				INFOPLIST_FILE = NightscoutAPIClientUI/Info.plist;
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -604,6 +632,10 @@
 				DYLIB_COMPATIBILITY_VERSION = 1;
 				DYLIB_CURRENT_VERSION = 1;
 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Carthage/Build/iOS",
+				);
 				INFOPLIST_FILE = NightscoutAPIClientUI/Info.plist;
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
 				LD_RUNPATH_SEARCH_PATHS = (

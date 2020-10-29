@@ -26,13 +26,15 @@ public final class InsulinDeliveryTableViewController: UITableViewController {
 
     @IBOutlet weak var dataSourceSegmentedControl: UISegmentedControl!
 
+    public var enableDeleteAllButton: Bool = true
+    
     public var doseStore: DoseStore? {
         didSet {
             if let doseStore = doseStore {
                 doseStoreObserver = NotificationCenter.default.addObserver(forName: nil, object: doseStore, queue: OperationQueue.main, using: { [weak self] (note) -> Void in
 
                     switch note.name {
-                    case Notification.Name.DoseStoreValuesDidChange:
+                    case DoseStore.valuesDidChange:
                         if self?.isViewLoaded == true {
                             self?.reloadData()
                         }
@@ -106,7 +108,7 @@ public final class InsulinDeliveryTableViewController: UITableViewController {
     public override func setEditing(_ editing: Bool, animated: Bool) {
         super.setEditing(editing, animated: animated)
 
-        if editing {
+        if editing && enableDeleteAllButton {
             let item = UIBarButtonItem(
                 title: LocalizedString("Delete All", comment: "Button title to delete all objects"),
                 style: .plain,
