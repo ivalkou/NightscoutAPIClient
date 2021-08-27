@@ -11,7 +11,7 @@ import HealthKit
 import LoopKit
 
 
-class DeviceDataManager : CarbStoreDelegate {
+class DeviceDataManager {
 
     init() {
         let healthStore = HKHealthStore()
@@ -20,24 +20,25 @@ class DeviceDataManager : CarbStoreDelegate {
         carbStore = CarbStore(
             healthStore: healthStore,
             cacheStore: cacheStore,
+            cacheLength: .hours(24),
+            defaultAbsorptionTimes: (fast: .minutes(30), medium: .hours(3), slow: .hours(5)),
+            observationInterval: .hours(24),
             carbRatioSchedule: carbRatioSchedule,
-            insulinSensitivitySchedule: insulinSensitivitySchedule
+            insulinSensitivitySchedule: insulinSensitivitySchedule,
+            provenanceIdentifier: HKSource.default().bundleIdentifier
         )
-        let insulinModel: WalshInsulinModel?
-        if let actionDuration = insulinActionDuration {
-            insulinModel = WalshInsulinModel(actionDuration: actionDuration)
-        } else {
-            insulinModel = nil
-        }
         doseStore = DoseStore(
             healthStore: healthStore,
             cacheStore: cacheStore,
-            insulinModel: insulinModel,
+            insulinModelProvider: PresetInsulinModelProvider(defaultRapidActingModel: ExponentialInsulinModelPreset.rapidActingAdult),
+            longestEffectDuration: ExponentialInsulinModelPreset.rapidActingAdult.effectDuration,
             basalProfile: basalRateSchedule,
-            insulinSensitivitySchedule: insulinSensitivitySchedule
+            insulinSensitivitySchedule: insulinSensitivitySchedule,
+            provenanceIdentifier: HKSource.default().bundleIdentifier
         )
-        glucoseStore = GlucoseStore(healthStore: healthStore, cacheStore: cacheStore)
-        carbStore?.delegate = self
+        glucoseStore = GlucoseStore(healthStore: healthStore,
+                                    cacheStore: cacheStore,
+                                    provenanceIdentifier: HKSource.default().bundleIdentifier)
     }
 
     // Data stores
@@ -63,16 +64,6 @@ class DeviceDataManager : CarbStoreDelegate {
             UserDefaults.standard.carbRatioSchedule = carbRatioSchedule
 
             carbStore?.carbRatioSchedule = carbRatioSchedule
-        }
-    }
-
-    var insulinActionDuration = UserDefaults.standard.insulinActionDuration {
-        didSet {
-            UserDefaults.standard.insulinActionDuration = insulinActionDuration
-
-            if let duration = insulinActionDuration {
-                doseStore.insulinModel = WalshInsulinModel(actionDuration: duration)
-            }
         }
     }
 
@@ -114,6 +105,8 @@ class DeviceDataManager : CarbStoreDelegate {
     }
 
     // MARK: CarbStoreDelegate
+
+    func carbStoreHasUpdatedCarbData(_ carbStore: CarbStore) {}
 
     func carbStore(_ carbStore: CarbStore, didError error: CarbStore.CarbStoreError) {
         print("carbstore error: \(error)")

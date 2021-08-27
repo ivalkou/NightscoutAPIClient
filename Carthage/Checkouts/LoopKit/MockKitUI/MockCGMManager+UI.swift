@@ -7,6 +7,7 @@
 //
 
 import UIKit
+import SwiftUI
 import HealthKit
 import LoopKit
 import LoopKitUI
@@ -14,17 +15,30 @@ import MockKit
 
 
 extension MockCGMManager: CGMManagerUI {
-    public static func setupViewController() -> (UIViewController & CGMManagerSetupViewController & CompletionNotifying)? {
-        return nil
+
+    public static var onboardingImage: UIImage? { return UIImage(named: "CGM Simulator", in: Bundle(for: MockCGMManagerSettingsViewController.self), compatibleWith: nil) }
+
+    public var smallImage: UIImage? { return UIImage(named: "CGM Simulator", in: Bundle(for: MockCGMManagerSettingsViewController.self), compatibleWith: nil) }
+
+    public static func setupViewController(bluetoothProvider: BluetoothProvider, displayGlucoseUnitObservable: DisplayGlucoseUnitObservable, colorPalette: LoopUIColorPalette, allowDebugFeatures: Bool) -> SetupUIResult<CGMManagerViewController, CGMManagerUI> {
+        return .createdAndOnboarded(MockCGMManager())
     }
 
-    public func settingsViewController(for glucoseUnit: HKUnit) -> (UIViewController & CompletionNotifying) {
-        let settings = MockCGMManagerSettingsViewController(cgmManager: self, glucoseUnit: glucoseUnit)
-        let nav = SettingsNavigationViewController(rootViewController: settings)
+    public func settingsViewController(bluetoothProvider: BluetoothProvider, displayGlucoseUnitObservable: DisplayGlucoseUnitObservable, colorPalette: LoopUIColorPalette, allowDebugFeatures: Bool) -> CGMManagerViewController {
+        let settings = MockCGMManagerSettingsViewController(cgmManager: self, displayGlucoseUnitObservable: displayGlucoseUnitObservable)
+        let nav = CGMManagerSettingsNavigationViewController(rootViewController: settings)
         return nav
     }
 
-    public var smallImage: UIImage? {
-        return nil
+    public var cgmStatusBadge: DeviceStatusBadge? {
+        return self.mockSensorState.cgmStatusBadge
+    }
+    
+    public var cgmStatusHighlight: DeviceStatusHighlight? {
+        return self.mockSensorState.cgmStatusHighlight
+    }
+
+    public var cgmLifecycleProgress: DeviceLifecycleProgress? {
+        return self.mockSensorState.cgmLifecycleProgress
     }
 }

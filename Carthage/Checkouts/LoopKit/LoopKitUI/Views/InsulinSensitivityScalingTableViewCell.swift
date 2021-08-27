@@ -24,11 +24,9 @@ final class InsulinSensitivityScalingTableViewCell: UITableViewCell {
 
     @IBOutlet weak var gaugeBar: SegmentedGaugeBarView! {
         didSet {
-            if #available(iOSApplicationExtension 13.0, *) {
-                gaugeBar.backgroundColor = .systemGray6
-            } else {
-                gaugeBar.backgroundColor = .white
-            }
+            gaugeBar.backgroundColor = .systemGray6
+
+            gaugeBar.delegate = self
         }
     }
 
@@ -65,12 +63,23 @@ final class InsulinSensitivityScalingTableViewCell: UITableViewCell {
             scaleFactorPickerHeightConstraint.constant = newValue ? 0 : pickerExpandedHeight
 
             if !newValue {
-                guard let selectedRow = allScaleFactorPercentages.firstIndex(of: selectedPercentage) else {
-                    fatalError("selectedPercentage should always be validated against all possible scale factors")
-                }
-                scaleFactorPicker.selectRow(selectedRow, inComponent: 0, animated: false)
+                updatePickerRow(animated: false)
             }
         }
+    }
+
+    private func updatePickerRow(animated: Bool) {
+        var selectedRow = allScaleFactorPercentages.firstIndex(of: selectedPercentage)
+        if selectedRow == nil {
+            let truncatedPercentage = allScaleFactorPercentages
+                .adjacentPairs()
+                .first(where: { lower, upper in
+                    (lower..<upper).contains(selectedPercentage)
+                })?.0 ?? 100
+            selectedRow = allScaleFactorPercentages.firstIndex(of: truncatedPercentage)
+        }
+
+        scaleFactorPicker.selectRow(selectedRow!, inComponent: 0, animated: animated)
     }
 
     private var selectedPercentage = 100 {
@@ -87,19 +96,8 @@ final class InsulinSensitivityScalingTableViewCell: UITableViewCell {
             return Double(selectedPercentage) / 100
         }
         set {
-            let percentage = Int(round(newValue * 100))
-                .clamped(to: allScaleFactorPercentages.first!...allScaleFactorPercentages.last!)
-
-            if allScaleFactorPercentages.contains(percentage) {
-                selectedPercentage = percentage
-            } else {
-                // Truncate to nearest valid percentage
-                selectedPercentage = allScaleFactorPercentages
-                    .adjacentPairs()
-                    .first(where: { lower, upper in
-                        (lower..<upper).contains(percentage)
-                    })?.0 ?? 100
-            }
+            let domain = allScaleFactorPercentages.first!...allScaleFactorPercentages.last!
+            selectedPercentage = Int(round(newValue * 100)).clamped(to: domain)
         }
     }
 
@@ -108,7 +106,7 @@ final class InsulinSensitivityScalingTableViewCell: UITableViewCell {
     override func awakeFromNib() {
         super.awakeFromNib()
 
-        titleLabel.text = NSLocalizedString("Overall Insulin Needs", comment: "The title text for the insulin sensitivity scaling setting")
+        titleLabel.text = LocalizedString("Overall Insulin Needs", comment: "The title text for the insulin sensitivity scaling setting")
 
         selectedPercentage = 100
         setSelected(true, animated: false)
@@ -141,16 +139,16 @@ final class InsulinSensitivityScalingTableViewCell: UITableViewCell {
         let delta = selectedPercentage - 100
         if delta < 0 {
             footerText = String(
-                format: NSLocalizedString("Basal, bolus, and correction insulin dose amounts are decreased by %@%%.", comment: "Describes a percentage decrease in overall insulin needs"),
+                format: LocalizedString("Basal, bolus, and correction insulin dose amounts are decreased by %@%%.", comment: "Describes a percentage decrease in overall insulin needs"),
                 String(abs(delta))
             )
         } else if delta > 0 {
             footerText = String(
-                format: NSLocalizedString("Basal, bolus, and correction insulin dose amounts are increased by %@%%.", comment: "Describes a percentage increase in overall insulin needs"),
+                format: LocalizedString("Basal, bolus, and correction insulin dose amounts are increased by %@%%.", comment: "Describes a percentage increase in overall insulin needs"),
                 String(delta)
             )
         } else {
-            footerText = NSLocalizedString("Basal, bolus, and correction insulin dose amounts are unaffected.", comment: "Describes a lack of change in overall insulin needs")
+            footerText = LocalizedString("Basal, bolus, and correction insulin dose amounts are unaffected.", comment: "Describes a lack of change in overall insulin needs")
         }
 
         footerLabel.text = footerText
@@ -178,6 +176,13 @@ extension InsulinSensitivityScalingTableViewCell: UIPickerViewDelegate {
 
     func pickerView(_ pickerView: UIPickerView, didSelectRow row: Int, inComponent component: Int) {
         selectedPercentage = allScaleFactorPercentages[row]
+    }
+}
+
+extension InsulinSensitivityScalingTableViewCell: SegmentedGaugeBarViewDelegate {
+    func segmentedGaugeBarView(_ view: SegmentedGaugeBarView, didUpdateProgressFrom oldValue: Double, to newValue: Double) {
+        scaleFactor = newValue
+        updatePickerRow(animated: true)
     }
 }
 

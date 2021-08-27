@@ -17,6 +17,17 @@ public struct MockCGMDataSource {
         case constant(_ glucose: HKQuantity)
         case sineCurve(parameters: SineCurveParameters)
         case noData
+        case signalLoss
+        case unreliableData
+        
+        public var isValidSession: Bool {
+            switch self {
+            case .noData:
+                return false
+            default:
+                return true
+            }
+        }
     }
 
     public struct Effects {
@@ -41,7 +52,7 @@ public struct MockCGMDataSource {
     }
 
     static let device = HKDevice(
-        name: MockCGMManager.managerIdentifier,
+        name: "MockCGMManager",
         manufacturer: nil,
         model: nil,
         hardwareVersion: nil,
@@ -67,12 +78,16 @@ public struct MockCGMDataSource {
 
     private var lastFetchedData = Locked(Date.distantPast)
 
-    let dataPointFrequency: TimeInterval
-
+    public var dataPointFrequency: MeasurementFrequency
+    
+    public var isValidSession: Bool {
+        return model.isValidSession
+    }
+    
     public init(
         model: Model,
         effects: Effects = .init(),
-        dataPointFrequency: TimeInterval = /* minutes */ 5 * 60
+        dataPointFrequency: MeasurementFrequency = .normal
     ) {
         self.model = model
         self.effects = effects
@@ -80,10 +95,10 @@ public struct MockCGMDataSource {
         self.dataPointFrequency = dataPointFrequency
     }
 
-    func fetchNewData(_ completion: @escaping (CGMResult) -> Void) {
+    func fetchNewData(_ completion: @escaping (CGMReadingResult) -> Void) {
         let now = Date()
         // Give 5% wiggle room for producing data points
-        let bufferedFrequency = dataPointFrequency - 0.05 * dataPointFrequency
+        let bufferedFrequency = dataPointFrequency.frequency - 0.05 * dataPointFrequency.frequency
         if now.timeIntervalSince(lastFetchedData.value) < bufferedFrequency {
             completion(.noData)
             return
@@ -93,9 +108,9 @@ public struct MockCGMDataSource {
         glucoseProvider.fetchData(at: now, completion: completion)
     }
 
-    func backfillData(from interval: DateInterval, completion: @escaping (CGMResult) -> Void) {
+    func backfillData(from interval: DateInterval, completion: @escaping (CGMReadingResult) -> Void) {
         lastFetchedData.value = interval.end
-        let request = MockGlucoseProvider.BackfillRequest(datingBack: interval.duration, dataPointFrequency: dataPointFrequency)
+        let request = MockGlucoseProvider.BackfillRequest(datingBack: interval.duration, dataPointFrequency: dataPointFrequency.frequency)
         glucoseProvider.backfill(request, endingAt: interval.end, completion: completion)
     }
 }
@@ -106,18 +121,20 @@ extension MockCGMDataSource: RawRepresentable {
     public init?(rawValue: RawValue) {
         guard
             let model = (rawValue["model"] as? Model.RawValue).flatMap(Model.init(rawValue:)),
-            let effects = (rawValue["effects"] as? Effects.RawValue).flatMap(Effects.init(rawValue:))
+            let effects = (rawValue["effects"] as? Effects.RawValue).flatMap(Effects.init(rawValue:)),
+            let dataPointFrequency = (rawValue["dataPointFrequency"] as? MeasurementFrequency.RawValue).flatMap(MeasurementFrequency.init(rawValue:))
         else {
             return nil
         }
 
-        self.init(model: model, effects: effects)
+        self.init(model: model, effects: effects, dataPointFrequency: dataPointFrequency)
     }
 
     public var rawValue: RawValue {
         return [
             "model": model.rawValue,
-            "effects": effects.rawValue
+            "effects": effects.rawValue,
+            "dataPointFrequency": dataPointFrequency.rawValue
         ]
     }
 }
@@ -126,9 +143,11 @@ extension MockCGMDataSource.Model: RawRepresentable {
     public typealias RawValue = [String: Any]
 
     private enum Kind: String {
-        case constant = "constant"
-        case sineCurve = "sineCurve"
-        case noData = "noData"
+        case constant
+        case sineCurve
+        case noData
+        case signalLoss
+        case unreliableData
     }
 
     private static let unit = HKUnit.milligramsPerDeciliter
@@ -169,6 +188,10 @@ extension MockCGMDataSource.Model: RawRepresentable {
             self = .sineCurve(parameters: (baseGlucose: baseGlucose, amplitude: amplitude, period: period, referenceDate: referenceDate))
         case .noData:
             self = .noData
+        case .signalLoss:
+            self = .signalLoss
+        case .unreliableData:
+            self = .unreliableData
         }
     }
 
@@ -184,7 +207,7 @@ extension MockCGMDataSource.Model: RawRepresentable {
             rawValue["amplitude"] = amplitude.doubleValue(for: unit)
             rawValue["period"] = period
             rawValue["referenceDate"] = referenceDate.timeIntervalSince1970
-        case .noData:
+        case .noData, .signalLoss, .unreliableData:
             break
         }
 
@@ -199,6 +222,10 @@ extension MockCGMDataSource.Model: RawRepresentable {
             return .sineCurve
         case .noData:
             return .noData
+        case .signalLoss:
+            return .signalLoss
+        case .unreliableData:
+            return .unreliableData
         }
     }
 }
@@ -271,5 +298,27 @@ extension MockCGMDataSource: CustomDebugStringConvertible {
         * model: \(model)
         * effects: \(effects)
         """
+    }
+}
+
+public enum MeasurementFrequency: Int, CaseIterable {
+    case fast
+    case normal
+    
+    public var frequency: TimeInterval {
+        switch self {
+        case .fast:
+            return TimeInterval(5)
+        case .normal:
+            return TimeInterval(5*60)
+        }
+    }
+    public var localizedDescription: String {
+        switch self {
+        case .fast:
+            return "5 seconds"
+        case .normal:
+            return "5 minutes"
+        }
     }
 }

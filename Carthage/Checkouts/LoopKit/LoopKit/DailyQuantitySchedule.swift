@@ -71,6 +71,24 @@ public struct DailyQuantitySchedule<T: RawRepresentable>: DailySchedule {
     }
 }
 
+extension DailyQuantitySchedule: Codable where T: Codable {
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.unit = HKUnit(from: try container.decode(String.self, forKey: .unit))
+        self.valueSchedule = try container.decode(DailyValueSchedule<T>.self, forKey: .valueSchedule)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(unit.unitString, forKey: .unit)
+        try container.encode(valueSchedule, forKey: .valueSchedule)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case unit
+        case valueSchedule
+    }
+}
 
 extension DailyQuantitySchedule: CustomDebugStringConvertible {
     public var debugDescription: String {
@@ -106,8 +124,61 @@ public extension DailyQuantitySchedule where T == Double {
     func averageQuantity() -> HKQuantity {
         return HKQuantity(unit: unit, doubleValue: averageValue())
     }
+    
+    func lowestValue() -> Double? {
+        return valueSchedule.items.min(by: { $0.value < $1.value } )?.value
+    }
+
+    var quantities: [RepeatingScheduleValue<HKQuantity>] {
+        return self.items.map {
+            RepeatingScheduleValue<HKQuantity>(startTime: $0.startTime,
+                                               value: HKQuantity(unit: unit, doubleValue: $0.value))
+        }
+    }
+    
+    func quantities(using unit: HKUnit) -> [RepeatingScheduleValue<HKQuantity>] {
+        return self.items.map {
+            RepeatingScheduleValue<HKQuantity>(startTime: $0.startTime,
+                                               value: HKQuantity(unit: unit, doubleValue: $0.value))
+        }
+    }
+    
+    init?(unit: HKUnit,
+          dailyQuantities: [RepeatingScheduleValue<HKQuantity>],
+          timeZone: TimeZone? = nil)
+    {
+        guard let valueSchedule = DailyValueSchedule(
+                dailyItems: dailyQuantities.map {
+                    RepeatingScheduleValue(startTime: $0.startTime, value: $0.value.doubleValue(for: unit))
+                },
+                timeZone: timeZone) else
+        {
+            return nil
+        }
+        
+        self.unit = unit
+        self.valueSchedule = valueSchedule
+    }
 }
 
+public extension DailyQuantitySchedule where T == DoubleRange {
+    init?(unit: HKUnit,
+          dailyQuantities: [RepeatingScheduleValue<ClosedRange<HKQuantity>>],
+          timeZone: TimeZone? = nil)
+    {
+        guard let valueSchedule = DailyValueSchedule(
+                dailyItems: dailyQuantities.map {
+                    RepeatingScheduleValue(startTime: $0.startTime, value: $0.value.doubleRange(for: unit))
+                },
+                timeZone: timeZone) else
+        {
+            return nil
+        }
+
+        self.unit = unit
+        self.valueSchedule = valueSchedule
+    }
+}
 
 extension DailyQuantitySchedule: Equatable where T: Equatable {
     public static func == (lhs: DailyQuantitySchedule<T>, rhs: DailyQuantitySchedule<T>) -> Bool {

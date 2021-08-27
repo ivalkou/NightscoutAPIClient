@@ -34,7 +34,11 @@ public struct TemporaryScheduleOverrideSettings: Hashable {
     }
 
     public init(unit: HKUnit, targetRange: DoubleRange?, insulinNeedsScaleFactor: Double? = nil) {
-        self.targetRangeInMgdl = targetRange?.quantityRange(for: unit).doubleRange(for: .milligramsPerDeciliter)
+        self.init(targetRange: targetRange?.quantityRange(for: unit), insulinNeedsScaleFactor: insulinNeedsScaleFactor)
+    }
+
+    public init(targetRange: ClosedRange<HKQuantity>?, insulinNeedsScaleFactor: Double? = nil) {
+        self.targetRangeInMgdl = targetRange?.doubleRange(for: .milligramsPerDeciliter)
         self.insulinNeedsScaleFactor = insulinNeedsScaleFactor
     }
 }
@@ -66,8 +70,8 @@ extension TemporaryScheduleOverrideSettings: RawRepresentable {
     public var rawValue: RawValue {
         var raw: RawValue = [:]
 
-        if let targetRange = targetRangeInMgdl {
-            raw[Key.targetRange] = targetRange.rawValue
+        if let targetRangeInMgdl = targetRangeInMgdl {
+            raw[Key.targetRange] = targetRangeInMgdl.rawValue
         }
 
         if let insulinNeedsScaleFactor = insulinNeedsScaleFactor {
@@ -79,3 +83,5 @@ extension TemporaryScheduleOverrideSettings: RawRepresentable {
         return raw
     }
 }
+
+extension TemporaryScheduleOverrideSettings: Codable {}

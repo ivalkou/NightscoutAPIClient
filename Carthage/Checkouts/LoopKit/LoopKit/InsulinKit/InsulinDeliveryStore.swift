@@ -9,29 +9,27 @@ import HealthKit
 import CoreData
 import os.log
 
-enum InsulinDeliveryStoreResult<T> {
-    case success(T)
-    case failure(Error)
-}
-
-
-/// Manages insulin dose data from HealthKit
+/// Manages insulin dose data in Core Data and optionally reads insulin dose data from HealthKit.
 ///
-/// Scheduled doses (e.g. a bolus or temporary basal) shouldn't be written to HealthKit until they've
-/// been delivered into the patient, which means its common for the HealthKit data to slightly lag
+/// Scheduled doses (e.g. a bolus or temporary basal) shouldn't be written to this store until they've
+/// been delivered into the patient, which means its common for this store data to slightly lag
 /// behind the dose data used for algorithmic calculation.
 ///
-/// HealthKit data isn't a substitute for an insulin pump's diagnostic event history, but doses fetched
-/// from HealthKit can reduce the amount of repeated communication with an insulin pump.
+/// This store data isn't a substitute for an insulin pump's diagnostic event history, but doses fetched
+/// from this store can reduce the amount of repeated communication with an insulin pump.
 public class InsulinDeliveryStore: HealthKitSampleStore {
-    private let insulinType = HKQuantityType.quantityType(forIdentifier: .insulinDelivery)!
+    
+    /// Notification posted when dose entries were changed, either via direct add or from HealthKit
+    public static let doseEntriesDidChange = NSNotification.Name(rawValue: "com.loopkit.InsulinDeliveryStore.doseEntriesDidChange")
 
-    private let queue = DispatchQueue(label: "com.loopkit.InsulinKit.InsulinDeliveryStore.queue", qos: .utility)
+    private let insulinQuantityType = HKQuantityType.quantityType(forIdentifier: .insulinDelivery)!
+
+    private let queue = DispatchQueue(label: "com.loopkit.InsulinDeliveryStore.queue", qos: .utility)
 
     private let log = OSLog(category: "InsulinDeliveryStore")
 
-    /// The most-recent end date for a basal sample written by LoopKit
-    /// Should only be accessed on dataAccessQueue
+    /// The most-recent end date for a basal dose entry written by LoopKit
+    /// Should only be accessed on queue
     private var lastBasalEndDate: Date? {
         didSet {
             test_lastBasalEndDateDidSet?()
@@ -43,132 +41,183 @@ public class InsulinDeliveryStore: HealthKitSampleStore {
     /// The interval of insulin delivery data to keep in cache
     public let cacheLength: TimeInterval
 
-    public let cacheStore: PersistenceController
+    private let cacheStore: PersistenceController
+
+    private let provenanceIdentifier: String
+
+    static let healthKitQueryAnchorMetadataKey = "com.loopkit.InsulinDeliveryStore.hkQueryAnchor"
 
     public init(
         healthStore: HKHealthStore,
+        observeHealthKitSamplesFromOtherApps: Bool = true,
         cacheStore: PersistenceController,
         observationEnabled: Bool = true,
         cacheLength: TimeInterval = 24 /* hours */ * 60 /* minutes */ * 60 /* seconds */,
+        provenanceIdentifier: String,
         test_currentDate: Date? = nil
     ) {
         self.cacheStore = cacheStore
         self.cacheLength = cacheLength
+        self.provenanceIdentifier = provenanceIdentifier
 
         super.init(
             healthStore: healthStore,
-            type: insulinType,
+            observeHealthKitSamplesFromCurrentApp: false,
+            observeHealthKitSamplesFromOtherApps: observeHealthKitSamplesFromOtherApps,
+            type: insulinQuantityType,
             observationStart: (test_currentDate ?? Date()).addingTimeInterval(-cacheLength),
             observationEnabled: observationEnabled,
             test_currentDate: test_currentDate
         )
 
+        let semaphore = DispatchSemaphore(value: 0)
         cacheStore.onReady { (error) in
-            // Should we do something here?
-        }
-    }
-
-    public override func processResults(from query: HKAnchoredObjectQuery, added: [HKSample], deleted: [HKDeletedObject], error: Error?) {
-        guard error == nil else {
-            return
-        }
-
-        queue.async {
-            // Added samples
-            let samples = ((added as? [HKQuantitySample]) ?? []).filterDateRange(self.earliestCacheDate, nil)
-            var cacheChanged = false
-
-            if self.addCachedObjects(for: samples) {
-                cacheChanged = true
+            guard error == nil else {
+                semaphore.signal()
+                return
             }
 
-            // Deleted samples
-            for sample in deleted {
-                if self.deleteCachedObject(forSampleUUID: sample.uuid) {
-                    cacheChanged = true
-                }
-            }
-
-            let cachePredicate = NSPredicate(format: "startDate < %@", self.earliestCacheDate as NSDate)
-            self.purgeCachedObjects(matching: cachePredicate)
-
-            if cacheChanged || self.lastBasalEndDate == nil {
-                self.updateLastBasalEndDate()
-            }
-
-            // New data not written by LoopKit (see `MetadataKeyHasLoopKitOrigin`) should be assumed external to what could be fetched as PumpEvent data.
-            // That external data could be factored into dose computation with some modification:
-            // An example might be supplemental injections in cases of extended exercise periods without a pump
-        }
-    }
-
-    public override var preferredUnit: HKUnit! {
-        return super.preferredUnit
-    }
-}
-
-
-// MARK: - Adding data
-extension InsulinDeliveryStore {
-    func addReconciledDoses(_ doses: [DoseEntry], from device: HKDevice?, syncVersion: Int, completion: @escaping (_ result: InsulinDeliveryStoreResult<Bool>) -> Void) {
-        let unit = HKUnit.internationalUnit()
-        var samples: [HKQuantitySample] = []
-
-        cacheStore.managedObjectContext.performAndWait {
-            samples = doses.compactMap { (dose) -> HKQuantitySample? in
-                guard let syncIdentifier = dose.syncIdentifier else {
-                    log.error("Attempted to add a dose with no syncIdentifier: %{public}@", String(reflecting: dose))
-                    return nil
-                }
-
-                guard self.cacheStore.managedObjectContext.cachedInsulinDeliveryObjectsWithSyncIdentifier(syncIdentifier, fetchLimit: 1).count == 0 else {
-                    log.default("Skipping adding dose due to existing cached syncIdentifier: %{public}@", syncIdentifier)
-                    return nil
-                }
-
-                return HKQuantitySample(
-                    type: insulinType,
-                    unit: unit,
-                    dose: dose,
-                    device: device,
-                    syncVersion: syncVersion
-                )
-            }
-        }
-
-        guard samples.count > 0 else {
-            completion(.success(true))
-            return
-        }
-
-        healthStore.save(samples) { (success, error) in
-            if let error = error {
-                completion(.failure(error))
-            } else {
+            cacheStore.fetchAnchor(key: InsulinDeliveryStore.healthKitQueryAnchorMetadataKey) { (anchor) in
                 self.queue.async {
-                    if samples.count > 0 {
-                        self.addCachedObjects(for: samples)
+                    self.queryAnchor = anchor
 
-                        if self.lastBasalEndDate != nil {
-                            self.updateLastBasalEndDate()
+                    self.updateLastBasalEndDate()
+
+                    semaphore.signal()
+                }
+            }
+        }
+        semaphore.wait()
+    }
+    
+    // MARK: - HealthKitSampleStore
+
+    override func queryAnchorDidChange() {
+        cacheStore.storeAnchor(queryAnchor, key: InsulinDeliveryStore.healthKitQueryAnchorMetadataKey)
+    }
+
+    override func processResults(from query: HKAnchoredObjectQuery, added: [HKSample], deleted: [HKDeletedObject], anchor: HKQueryAnchor, completion: @escaping (Bool) -> Void) {
+        queue.async {
+            guard anchor != self.queryAnchor else {
+                self.log.default("Skipping processing results from anchored object query, as anchor was already processed")
+                completion(true)
+                return
+            }
+
+            var changed = false
+            var error: Error?
+
+            self.cacheStore.managedObjectContext.performAndWait {
+                do {
+                    // Add new samples
+                    if let samples = added as? [HKQuantitySample] {
+                        for sample in samples {
+                            if try self.addDoseEntry(for: sample) {
+                                self.log.debug("Saved sample %@ into cache from HKAnchoredObjectQuery", sample.uuid.uuidString)
+                                changed = true
+                            } else {
+                                self.log.default("Sample %@ from HKAnchoredObjectQuery already present in cache", sample.uuid.uuidString)
+                            }
                         }
                     }
 
-                    completion(.success(true))
+                    // Delete deleted samples
+                    let count = try self.deleteDoseEntries(withUUIDs: deleted.map { $0.uuid })
+                    if count > 0 {
+                        self.log.debug("Deleted %d samples from cache from HKAnchoredObjectQuery", count)
+                        changed = true
+                    }
+
+                    guard changed else {
+                        return
+                    }
+
+                    error = self.cacheStore.save()
+                } catch let coreDataError {
+                    error = coreDataError
                 }
             }
+
+            if error != nil {
+                completion(false)
+                return
+            }
+
+            if !changed {
+                completion(true)
+                return
+            }
+
+            self.handleUpdatedDoseData(updateSource: .queriedByHealthKit)
+            completion(true)
         }
     }
 }
 
+// MARK: - Fetching
 
 extension InsulinDeliveryStore {
-    /// Returns the end date of the most recent basal sample
+    /// Retrieves dose entries within the specified date range.
     ///
     /// - Parameters:
-    ///   - completion: A closure called when the date has been retrieved
-    ///   - result: The date
-    func getLastBasalEndDate(_ completion: @escaping (_ result: InsulinDeliveryStoreResult<Date>) -> Void) {
+    ///   - start: The earliest date of dose entries to retrieve, if provided.
+    ///   - end: The latest date of dose entries to retrieve, if provided.
+    ///   - completion: A closure called once the dose entries have been retrieved.
+    ///   - result: An array of dose entries, in chronological order by startDate, or error.
+    public func getDoseEntries(start: Date? = nil, end: Date? = nil, completion: @escaping (_ result: Result<[DoseEntry], Error>) -> Void) {
+        queue.async {
+            completion(self.getDoseEntries(start: start, end: end))
+        }
+    }
+
+    private func getDoseEntries(start: Date? = nil, end: Date? = nil) -> Result<[DoseEntry], Error> {
+        dispatchPrecondition(condition: .onQueue(queue))
+
+        var entries: [DoseEntry] = []
+        var error: Error?
+
+        cacheStore.managedObjectContext.performAndWait {
+            do {
+                entries = try self.getCachedInsulinDeliveryObjects(start: start, end: end).map { $0.dose }
+            } catch let coreDataError {
+                error = coreDataError
+            }
+        }
+
+        if let error = error {
+            self.log.error("Error getting CachedInsulinDeliveryObjects: %{public}@", String(describing: error))
+            return .failure(error)
+        }
+
+        return .success(entries)
+    }
+
+    private func getCachedInsulinDeliveryObjects(start: Date? = nil, end: Date? = nil) throws -> [CachedInsulinDeliveryObject] {
+        dispatchPrecondition(condition: .onQueue(queue))
+
+        // Match all doses whose start OR end dates fall in the start and end date range, if specified. Therefore, we ensure the
+        // dose end date is AFTER the start date, if specified, and the dose start date is BEFORE the end date, if specified.
+        var predicates: [NSPredicate] = []
+        if let start = start {
+            predicates.append(NSPredicate(format: "endDate >= %@", start as NSDate))
+        }
+        if let end = end {
+            predicates.append(NSPredicate(format: "startDate <= %@", end as NSDate))    // Note: Using <= rather than < to match previous behavior
+        }
+
+        let request: NSFetchRequest<CachedInsulinDeliveryObject> = CachedInsulinDeliveryObject.fetchRequest()
+        request.predicate = (predicates.count > 1) ? NSCompoundPredicate(andPredicateWithSubpredicates: predicates) : predicates.first
+        request.sortDescriptors = [NSSortDescriptor(key: "startDate", ascending: true)]
+
+        return try self.cacheStore.managedObjectContext.fetch(request)
+    }
+
+    /// Returns the end date of the most recent basal dose entry.
+    ///
+    /// - Parameters:
+    ///   - completion: A closure called when the date has been retrieved with date.
+    ///   - result: The date, or error.
+    func getLastBasalEndDate(_ completion: @escaping (_ result: Result<Date, Error>) -> Void) {
         queue.async {
             switch self.lastBasalEndDate {
             case .some(let date):
@@ -178,111 +227,6 @@ extension InsulinDeliveryStore {
                 completion(.failure(DoseStore.DoseStoreError.configurationError))
             }
         }
-    }
-
-    /// Returns doses from HealthKit, or the Core Data cache if unavailable
-    ///
-    /// - Parameters:
-    ///   - start: The earliest dose startDate to include
-    ///   - end: The latest dose startDate to include
-    ///   - isChronological: Whether the doses should be returned in chronological order
-    ///   - completion: A closure called when the doses have been retrieved
-    ///   - doses: An ordered array of doses
-    func getCachedDoses(start: Date, end: Date? = nil, isChronological: Bool = true, _ completion: @escaping (_ doses: [DoseEntry]) -> Void) {
-        // If we were asked for an unbounded query, or we're within our cache duration, only return what's in the cache
-        guard start > .distantPast, start <= earliestCacheDate else {
-            self.queue.async {
-                completion(self.getCachedDoseEntries(start: start, end: end, isChronological: isChronological))
-            }
-            return
-        }
-
-        getDoses(start: start, end: end, isChronological: isChronological) { (result) in
-            switch result {
-            case .success(let doses):
-                completion(doses)
-            case .failure:
-                // Expected when database is inaccessible
-                self.queue.async {
-                    completion(self.getCachedDoseEntries(start: start, end: end, isChronological: isChronological))
-                }
-            }
-        }
-    }
-}
-
-
-// MARK: - HealthKit
-extension InsulinDeliveryStore {
-    private func getDoses(start: Date, end: Date? = nil, isChronological: Bool = true, _ completion: @escaping (_ result: InsulinDeliveryStoreResult<[DoseEntry]>) -> Void) {
-        getSamples(start: start, end: end, isChronological: isChronological) { (result) in
-            switch result {
-            case .failure(let error):
-                completion(.failure(error))
-            case .success(let samples):
-                completion(.success(samples.compactMap { $0.dose }))
-            }
-        }
-    }
-
-    private func getSamples(start: Date, end: Date? = nil, isChronological: Bool = true, _ completion: @escaping (_ result: InsulinDeliveryStoreResult<[HKQuantitySample]>) -> Void) {
-        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
-        getSamples(matching: predicate, isChronological: isChronological, completion)
-    }
-
-    private func getSamples(matching predicate: NSPredicate, isChronological: Bool, _ completion: @escaping (_ result: InsulinDeliveryStoreResult<[HKQuantitySample]>) -> Void) {
-        let sort = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: isChronological)
-        let query = HKSampleQuery(sampleType: insulinType, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: [sort]) { (query, samples, error) in
-            if let error = error {
-                completion(.failure(error))
-            } else if let samples = samples as? [HKQuantitySample] {
-                completion(.success(samples))
-            } else {
-                assertionFailure("Unknown return configuration from query \(query)")
-            }
-        }
-
-        healthStore.execute(query)
-    }
-}
-
-
-// MARK: - Core Data
-extension InsulinDeliveryStore {
-    private var earliestCacheDate: Date {
-        return currentDate(timeIntervalSinceNow: -cacheLength)
-    }
-
-    /// Creates new cached insulin delivery objects from samples if they're not already cached and within the date interval
-    ///
-    /// - Parameter samples: The samples to cache
-    /// - Returns: Whether new cached objects were created
-    @discardableResult
-    private func addCachedObjects(for samples: [
-        HKQuantitySample]) -> Bool {
-        dispatchPrecondition(condition: .onQueue(queue))
-
-        var created = false
-        cacheStore.managedObjectContext.performAndWait {
-            for sample in samples {
-                guard
-                    sample.startDate.timeIntervalSince(currentDate()) > -self.cacheLength,
-                    self.cacheStore.managedObjectContext.cachedInsulinDeliveryObjectsWithUUID(sample.uuid, fetchLimit: 1).count == 0
-                else {
-                    continue
-                }
-
-                let object = CachedInsulinDeliveryObject(context: self.cacheStore.managedObjectContext)
-                object.update(from: sample)
-                created = true
-            }
-
-            if created {
-                self.cacheStore.save()
-            }
-        }
-
-        return created
     }
 
     private func updateLastBasalEndDate() {
@@ -310,98 +254,287 @@ extension InsulinDeliveryStore {
             }
         }
 
-        self.lastBasalEndDate = endDate ?? healthStore.earliestPermittedSampleDate()
-    }
-
-    /// Fetches doses from the cache that occur on or after a given start date
-    ///
-    /// - Parameters:
-    ///   - start: The earliest endDate to retrieve
-    ///   - end: The latest startDate to retrieve
-    ///   - isChronological: Whether the sort order is ascending by start date
-    /// - Returns: An ordered array of dose entries
-    private func getCachedDoseEntries(start: Date, end: Date? = nil, isChronological: Bool = true) -> [DoseEntry] {
-        dispatchPrecondition(condition: .onQueue(queue))
-
-        let startPredicate = NSPredicate(format: "endDate >= %@", start as NSDate)
-        let predicate: NSPredicate
-
-        if let end = end {
-            let endPredicate = NSPredicate(format: "startDate <= %@", end as NSDate)
-            predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [startPredicate, endPredicate])
-        } else {
-            predicate = startPredicate
-        }
-
-        return getCachedDoseEntries(matching: predicate, isChronological: isChronological)
-    }
-
-    /// Fetches doses from the cache that match the given predicate
-    ///
-    /// - Parameters:
-    ///   - predicate: The predicate to apply to the objects
-    ///   - isChronological: Whether the sort order is ascending by start date
-    /// - Returns: An ordered array of dose entries
-    private func getCachedDoseEntries(matching predicate: NSPredicate? = nil, isChronological: Bool = true) -> [DoseEntry] {
-        dispatchPrecondition(condition: .onQueue(queue))
-
-        var doses: [DoseEntry] = []
-
-        cacheStore.managedObjectContext.performAndWait {
-            let request: NSFetchRequest<CachedInsulinDeliveryObject> = CachedInsulinDeliveryObject.fetchRequest()
-            request.predicate = predicate
-            request.sortDescriptors = [NSSortDescriptor(key: "startDate", ascending: isChronological)]
-
-            do {
-                let objects = try self.cacheStore.managedObjectContext.fetch(request)
-                doses = objects.compactMap { $0.dose }
-            } catch let error {
-                self.log.error("Error fetching CachedInsulinDeliveryObjects: %{public}@", String(describing: error))
-            }
-        }
-
-        return doses
-    }
-
-    /// Deletes objects from the cache that match the given sample UUID
-    ///
-    /// - Parameter uuid: The UUID of the sample to delete
-    /// - Returns: Whether the deletion was made
-    private func deleteCachedObject(forSampleUUID uuid: UUID) -> Bool {
-        dispatchPrecondition(condition: .onQueue(queue))
-
-        var deleted = false
-
-        cacheStore.managedObjectContext.performAndWait {
-            for object in self.cacheStore.managedObjectContext.cachedInsulinDeliveryObjectsWithUUID(uuid) {
-
-                self.cacheStore.managedObjectContext.delete(object)
-                self.log.default("Deleted CachedInsulinDeliveryObject with UUID %{public}@", uuid.uuidString)
-                deleted = true
-            }
-
-            if deleted {
-                self.cacheStore.save()
-            }
-        }
-
-        return deleted
-    }
-
-    private func purgeCachedObjects(matching predicate: NSPredicate) {
-        dispatchPrecondition(condition: .onQueue(queue))
-
-        cacheStore.managedObjectContext.performAndWait {
-            do {
-                let count = try cacheStore.managedObjectContext.purgeObjects(of: CachedInsulinDeliveryObject.self, matching: predicate)
-                self.log.default("Purged %d CachedInsulinDeliveryObjects", count)
-            } catch let error {
-                self.log.error("Unable to purge CachedInsulinDeliveryObjects: %@", String(describing: error))
-            }
-        }
+        self.lastBasalEndDate = endDate ?? .distantPast
     }
 }
 
+// MARK: - Modification
+
+extension InsulinDeliveryStore {
+    /// Add dose entries to store.
+    ///
+    /// - Parameters:
+    ///   - entries: The new dose entries to add to the store.
+    ///   - device: The optional device used for the new dose entries.
+    ///   - syncVersion: The sync version used for the new dose entries.
+    ///   - completion: A closure called once the dose entries have been stored.
+    ///   - result: Success or error.
+    func addDoseEntries(_ entries: [DoseEntry], from device: HKDevice?, syncVersion: Int, manuallyEntered: Bool = false, completion: @escaping (_ result: Result<Void, Error>) -> Void) {
+        guard !entries.isEmpty else {
+            completion(.success(()))
+            return
+        }
+
+        queue.async {
+            var changed = false
+            var error: Error?
+
+            self.cacheStore.managedObjectContext.performAndWait {
+                do {
+                    let quantitySamples: [HKQuantitySample] = try entries.compactMap { entry in
+                        guard let syncIdentifier = entry.syncIdentifier else {
+                            self.log.error("Ignored adding dose entry without sync identifier: %{public}@", String(reflecting: entry))
+                            return nil
+                        }
+
+                        let request: NSFetchRequest<CachedInsulinDeliveryObject> = CachedInsulinDeliveryObject.fetchRequest()
+                        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [NSPredicate(format: "provenanceIdentifier == %@", self.provenanceIdentifier),
+                                                                                                NSPredicate(format: "syncIdentifier == %@", syncIdentifier)])
+                        request.fetchLimit = 1
+
+                        guard try self.cacheStore.managedObjectContext.count(for: request) == 0 else {
+                            self.log.default("Skipping adding dose entry due to existing cached sync identifier: %{public}@", syncIdentifier)
+                            return nil
+                        }
+
+                        return HKQuantitySample(type: self.insulinQuantityType, unit: HKUnit.internationalUnit(), dose: entry, device: device, provenanceIdentifier: self.provenanceIdentifier, syncVersion: syncVersion)
+                    }
+
+                    changed = !quantitySamples.isEmpty
+                    guard changed else {
+                        return
+                    }
+
+                    let objects: [CachedInsulinDeliveryObject] = quantitySamples.map { quantitySample in
+                        let object = CachedInsulinDeliveryObject(context: self.cacheStore.managedObjectContext)
+                        object.create(fromNew: quantitySample, on: self.currentDate())
+                        object.provenanceIdentifier = self.provenanceIdentifier
+                        return object
+                    }
+
+                    error = self.cacheStore.save()
+                    if error != nil {
+                        return
+                    }
+
+                    self.saveEntriesToHealthKit(quantitySamples, objects: objects)
+                } catch let coreDataError {
+                    error = coreDataError
+                }
+            }
+
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+
+            if !changed {
+                completion(.success(()))
+                return
+            }
+
+            self.handleUpdatedDoseData(updateSource: .changedInApp)
+            completion(.success(()))
+        }
+    }
+
+    private func saveEntriesToHealthKit(_ quantitySamples: [HKQuantitySample], objects: [CachedInsulinDeliveryObject]) {
+        dispatchPrecondition(condition: .onQueue(queue))
+
+        guard !quantitySamples.isEmpty else {
+            return
+        }
+
+        var error: Error?
+
+        // Save objects to HealthKit, log any errors, but do not fail
+        let dispatchGroup = DispatchGroup()
+        dispatchGroup.enter()
+        self.healthStore.save(quantitySamples) { (_, healthKitError) in
+            error = healthKitError
+            dispatchGroup.leave()
+        }
+        dispatchGroup.wait()
+
+        if let error = error {
+            self.log.error("Error saving HealthKit objects: %@", String(describing: error))
+            return
+        }
+
+        // Update Core Data with the changes, log any errors, but do not fail
+        for (object, quantitySample) in zip(objects, quantitySamples) {
+            object.uuid = quantitySample.uuid
+        }
+        if let error = self.cacheStore.save() {
+            self.log.error("Error updating CachedInsulinDeliveryObjects after saving HealthKit objects: %@", String(describing: error))
+            objects.forEach { $0.uuid = nil }
+        }
+    }
+
+    private func addDoseEntry(for sample: HKQuantitySample) throws -> Bool {
+        dispatchPrecondition(condition: .onQueue(queue))
+
+        // Is entire sample before earliest cache date?
+        guard sample.endDate >= earliestCacheDate else {
+            return false
+        }
+
+        // Are there any objects matching the UUID?
+        let request: NSFetchRequest<CachedInsulinDeliveryObject> = CachedInsulinDeliveryObject.fetchRequest()
+        request.predicate = NSPredicate(format: "uuid == %@", sample.uuid as NSUUID)
+        request.fetchLimit = 1
+
+        let count = try cacheStore.managedObjectContext.count(for: request)
+        guard count == 0 else {
+            return false
+        }
+
+        // Add an object for this UUID
+        let object = CachedInsulinDeliveryObject(context: cacheStore.managedObjectContext)
+        object.create(fromExisting: sample, on: self.currentDate())
+
+        return true
+    }
+    
+    func deleteDose(bySyncIdentifier syncIdentifier: String, _ completion: @escaping (String?) -> Void) {
+        queue.async {
+            var errorString: String? = nil
+            self.cacheStore.managedObjectContext.performAndWait {
+                do {
+                    let predicate = NSPredicate(format: "syncIdentifier == %@", syncIdentifier)
+                    let count = try self.cacheStore.managedObjectContext.purgeObjects(of: CachedInsulinDeliveryObject.self, matching: predicate)
+                    guard count > 0 else {
+                        errorString = "Cannot find CachedInsulinDeliveryObject to delete"
+                        return
+                    }
+                    self.cacheStore.save()
+                    
+                    let healthKitPredicate = HKQuery.predicateForObjects(withMetadataKey: HKMetadataKeySyncIdentifier, allowedValues: [syncIdentifier])
+                    self.healthStore.deleteObjects(of: self.insulinQuantityType, predicate: healthKitPredicate)
+                    { success, deletedObjectCount, error in
+                        if let error = error {
+                            self.log.error("Unable to delete dose from Health: %@", error.localizedDescription)
+                        }
+                    }
+                } catch let error {
+                    errorString = "Error deleting CachedInsulinDeliveryObject: " + error.localizedDescription
+                    return
+                }
+            }
+            completion(errorString)
+        }
+    }
+
+    func deleteDose(with uuidToDelete: UUID, _ completion: @escaping (String?) -> Void) {
+        queue.async {
+            var errorString: String? = nil
+            self.cacheStore.managedObjectContext.performAndWait {
+                do {
+                    let count = try self.deleteDoseEntries(withUUIDs: [uuidToDelete])
+                    guard count > 0 else {
+                        errorString = "Cannot find CachedInsulinDeliveryObject to delete"
+                        return
+                    }
+                    self.cacheStore.save()
+                } catch let error {
+                    errorString = "Error deleting CachedInsulinDeliveryObject: " + error.localizedDescription
+                    return
+                }
+            }
+            completion(errorString)
+        }
+    }
+
+    private func deleteDoseEntries(withUUIDs uuids: [UUID], batchSize: Int = 500) throws -> Int {
+        dispatchPrecondition(condition: .onQueue(queue))
+
+        var count = 0
+        for batch in uuids.chunked(into: batchSize) {
+            let predicate = NSPredicate(format: "uuid IN %@", batch.map { $0 as NSUUID })
+            count += try cacheStore.managedObjectContext.purgeObjects(of: CachedInsulinDeliveryObject.self, matching: predicate)
+        }
+        return count
+    }
+}
+
+// MARK: - Cache Management
+
+extension InsulinDeliveryStore {
+    var earliestCacheDate: Date {
+        return currentDate(timeIntervalSinceNow: -cacheLength)
+    }
+
+    /// Purge all dose entries from the insulin delivery store and HealthKit (matching the specified device predicate).
+    ///
+    /// - Parameters:
+    ///   - healthKitPredicate: The HealthKit device predicate to match HealthKit insulin samples.
+    ///   - completion: The completion handler returning any error.
+    public func purgeAllDoseEntries(healthKitPredicate: NSPredicate, completion: @escaping (Error?) -> Void) {
+        queue.async {
+            let storeError = self.purgeCachedInsulinDeliveryObjects()
+            self.healthStore.deleteObjects(of: self.insulinQuantityType, predicate: healthKitPredicate) { _, _, healthKitError in
+                self.queue.async {
+                    self.handleUpdatedDoseData(updateSource: .changedInApp)
+                    completion(storeError ?? healthKitError)
+                }
+            }
+        }
+    }
+
+    private func purgeExpiredCachedInsulinDeliveryObjects() {
+        purgeCachedInsulinDeliveryObjects(before: earliestCacheDate)
+    }
+
+    /// Purge cached insulin delivery objects from the insulin delivery store.
+    ///
+    /// - Parameters:
+    ///   - date: Purge cached insulin delivery objects with start date before this date.
+    ///   - completion: The completion handler returning any error.
+    public func purgeCachedInsulinDeliveryObjects(before date: Date? = nil, completion: @escaping (Error?) -> Void) {
+        queue.async {
+            if let error = self.purgeCachedInsulinDeliveryObjects(before: date) {
+                completion(error)
+                return
+            }
+            self.handleUpdatedDoseData(updateSource: .changedInApp)
+            completion(nil)
+        }
+    }
+
+    @discardableResult
+    private func purgeCachedInsulinDeliveryObjects(before date: Date? = nil) -> Error? {
+        dispatchPrecondition(condition: .onQueue(queue))
+
+        var error: Error?
+
+        cacheStore.managedObjectContext.performAndWait {
+            do {
+                var predicate: NSPredicate?
+                if let date = date {
+                    predicate = NSPredicate(format: "endDate < %@", date as NSDate)
+                }
+                let count = try cacheStore.managedObjectContext.purgeObjects(of: CachedInsulinDeliveryObject.self, matching: predicate)
+                self.log.default("Purged %d CachedInsulinDeliveryObjects", count)
+            } catch let coreDataError {
+                self.log.error("Unable to purge CachedInsulinDeliveryObjects: %{public}@", String(describing: error))
+                error = coreDataError
+            }
+        }
+
+        return error
+    }
+
+    private func handleUpdatedDoseData(updateSource: UpdateSource) {
+        dispatchPrecondition(condition: .onQueue(queue))
+
+        self.purgeExpiredCachedInsulinDeliveryObjects()
+        self.updateLastBasalEndDate()
+
+        NotificationCenter.default.post(name: InsulinDeliveryStore.doseEntriesDidChange, object: self, userInfo: [InsulinDeliveryStore.notificationUpdateSourceKey: updateSource.rawValue])
+    }
+}
+
+// MARK: - Issue Report
 
 extension InsulinDeliveryStore {
     /// Generates a diagnostic report about the current state
@@ -420,8 +553,13 @@ extension InsulinDeliveryStore {
                 "#### cachedDoseEntries",
             ]
 
-            for sample in self.getCachedDoseEntries() {
-                report.append(String(describing: sample))
+            switch self.getDoseEntries(start: Date(timeIntervalSinceNow: -.hours(24))) {
+            case .failure(let error):
+                report.append("Error: \(error)")
+            case .success(let entries):
+                for entry in entries {
+                    report.append(String(describing: entry))
+                }
             }
 
             report.append("")
@@ -430,8 +568,8 @@ extension InsulinDeliveryStore {
     }
 }
 
-
 // MARK: - Unit Testing
+
 extension InsulinDeliveryStore {
     public var test_lastBasalEndDate: Date? {
         get {

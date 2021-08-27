@@ -7,7 +7,7 @@
 
 import UIKit
 
-public protocol SetupTableViewControllerDelegate: class {
+public protocol SetupTableViewControllerDelegate: AnyObject {
     func setupTableViewControllerCancelButtonPressed(_ viewController: SetupTableViewController)
 }
 
@@ -77,7 +77,7 @@ open class SetupTableFooterView: UIView {
 
     public let primaryButton = SetupButton(type: .custom)
 
-    fileprivate override init(frame: CGRect) {
+    public override init(frame: CGRect) {
         let buttonStack = UIStackView(arrangedSubviews: [primaryButton])
 
         super.init(frame: frame)

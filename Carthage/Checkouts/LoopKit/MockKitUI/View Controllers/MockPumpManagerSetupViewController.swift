@@ -12,7 +12,7 @@ import LoopKitUI
 import MockKit
 
 
-final class MockPumpManagerSetupViewController: UINavigationController, PumpManagerSetupViewController, CompletionNotifying {
+final class MockPumpManagerSetupViewController: UINavigationController, PumpManagerOnboarding, CompletionNotifying {
 
     static func instantiateFromStoryboard() -> MockPumpManagerSetupViewController {
         return UIStoryboard(name: "MockPumpManager", bundle: Bundle(for: MockPumpManagerSetupViewController.self)).instantiateInitialViewController() as! MockPumpManagerSetupViewController
@@ -26,18 +26,14 @@ final class MockPumpManagerSetupViewController: UINavigationController, PumpMana
 
     let pumpManager = MockPumpManager()
 
-    weak var setupDelegate: PumpManagerSetupViewControllerDelegate?
+    public weak var pumpManagerOnboardingDelegate: PumpManagerOnboardingDelegate?
 
-    weak var completionDelegate: CompletionDelegate?
+    public weak var completionDelegate: CompletionDelegate?
 
     override public func viewDidLoad() {
         super.viewDidLoad()
 
-        if #available(iOSApplicationExtension 13.0, iOS 13.0, *) {
-            view.backgroundColor = .systemBackground
-        } else {
-            view.backgroundColor = .white
-        }
+        view.backgroundColor = .systemBackground
         
         navigationBar.shadowImage = UIImage()
 
@@ -45,7 +41,10 @@ final class MockPumpManagerSetupViewController: UINavigationController, PumpMana
     }
 
     func completeSetup() {
-        setupDelegate?.pumpManagerSetupViewController(self, didSetUpPumpManager: pumpManager)
+        pumpManagerOnboardingDelegate?.pumpManagerOnboarding(didCreatePumpManager: pumpManager)
+
+        pumpManagerOnboardingDelegate?.pumpManagerOnboarding(didOnboardPumpManager: pumpManager)
+        
         completionDelegate?.completionNotifyingDidComplete(self)
     }
 
@@ -80,4 +79,3 @@ extension MockPumpManagerSetupViewController: SetupTableViewControllerDelegate {
         completionDelegate?.completionNotifyingDidComplete(self)
     }
 }
-

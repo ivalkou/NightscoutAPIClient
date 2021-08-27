@@ -42,7 +42,6 @@ extension DoubleRange: RawRepresentable {
     }
 }
 
-
 extension DoubleRange: Equatable {
     public static func ==(lhs: DoubleRange, rhs: DoubleRange) -> Bool {
         return abs(lhs.minValue - rhs.minValue) < .ulpOfOne &&
@@ -52,6 +51,7 @@ extension DoubleRange: Equatable {
 
 extension DoubleRange: Hashable {}
 
+extension DoubleRange: Codable {}
 
 /// Defines a daily schedule of glucose ranges
 public struct GlucoseRangeSchedule: DailySchedule, Equatable {
@@ -67,13 +67,13 @@ public struct GlucoseRangeSchedule: DailySchedule, Equatable {
         /// Initializes a new override
         ///
         /// - Parameters:
+        ///   - value: The value to return when active
         ///   - start: The date at which the override starts
         ///   - end: The date at which the override ends, or nil for an indefinite override
-        ///   - value: The value to return when active
-        public init(start: Date, end: Date?, value: DoubleRange) {
+        public init(value: DoubleRange, start: Date, end: Date? = nil) {
+            self.value = value
             self.start = start
             self.end = end ?? .distantFuture
-            self.value = value
         }
 
         public var activeDates: DateInterval {
@@ -133,7 +133,7 @@ public struct GlucoseRangeSchedule: DailySchedule, Equatable {
     /// Returns the underlying values in `unit`
     /// Consider using quantity(at:) instead
     public func value(at time: Date) -> DoubleRange {
-        if let override = override, override.isActive() {
+        if let override = override, time >= override.start && Date() < override.end {
             return override.value
         }
 
@@ -146,6 +146,13 @@ public struct GlucoseRangeSchedule: DailySchedule, Equatable {
 
     public var items: [RepeatingScheduleValue<DoubleRange>] {
         return rangeSchedule.items
+    }
+
+    public var quantityRanges: [RepeatingScheduleValue<ClosedRange<HKQuantity>>] {
+        return self.items.map {
+            RepeatingScheduleValue<ClosedRange<HKQuantity>>(startTime: $0.startTime,
+                                                            value: $0.value.quantityRange(for: unit))
+        }
     }
 
     public var timeZone: TimeZone {
@@ -164,7 +171,47 @@ public struct GlucoseRangeSchedule: DailySchedule, Equatable {
     public var rawValue: RawValue {
         return rangeSchedule.rawValue
     }
+
+    public func minLowerBound() -> HKQuantity {
+        let minDoubleValue = items.lazy.map { $0.value.minValue }.min()!
+        return HKQuantity(unit: unit, doubleValue: minDoubleValue)
+    }
+
+    public func scheduleRange() -> ClosedRange<HKQuantity> {
+        let minDoubleValue = items.lazy.map { $0.value.minValue }.min()!
+        let lowerBound = HKQuantity(unit: unit, doubleValue: minDoubleValue)
+
+        let maxDoubleValue = items.lazy.map { $0.value.maxValue }.max()!
+        let upperBound = HKQuantity(unit: unit, doubleValue: maxDoubleValue)
+
+        return lowerBound...upperBound
+    }
+
+    private func convertTo(unit: HKUnit) -> GlucoseRangeSchedule? {
+        guard unit != self.unit else {
+            return self
+        }
+
+        let convertedDailyItems: [RepeatingScheduleValue<DoubleRange>] = rangeSchedule.items.map {
+            RepeatingScheduleValue(startTime: $0.startTime,
+                                   value: $0.value.quantityRange(for: self.unit).doubleRange(for: unit)
+            )
+        }
+
+        return GlucoseRangeSchedule(unit: unit,
+                                    dailyItems: convertedDailyItems,
+                                    timeZone: timeZone)
+    }
+
+    public func schedule(for glucoseUnit: HKUnit) -> GlucoseRangeSchedule? {
+        precondition(glucoseUnit == .millimolesPerLiter || glucoseUnit == .milligramsPerDeciliter)
+        return self.convertTo(unit: glucoseUnit)
+    }
 }
+
+extension GlucoseRangeSchedule: Codable {}
+
+extension GlucoseRangeSchedule.Override: Codable {}
 
 extension DoubleRange {
     public func quantityRange(for unit: HKUnit) -> ClosedRange<HKQuantity> {
@@ -175,7 +222,17 @@ extension DoubleRange {
 }
 
 extension ClosedRange where Bound == HKQuantity {
-    func doubleRange(for unit: HKUnit) -> DoubleRange {
+    public func doubleRange(for unit: HKUnit) -> DoubleRange {
         return DoubleRange(minValue: lowerBound.doubleValue(for: unit), maxValue: upperBound.doubleValue(for: unit))
+    }
+
+    public func glucoseRange(for unit: HKUnit) -> GlucoseRange {
+        GlucoseRange(range: self.doubleRange(for: unit), unit: unit)
+    }
+}
+
+public extension DoubleRange {
+    init(_ val: ClosedRange<Double>) {
+        self.init(minValue: val.lowerBound, maxValue: val.upperBound)
     }
 }

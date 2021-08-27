@@ -11,8 +11,8 @@ import HealthKit
 
 
 public struct RepeatingScheduleValue<T> {
-    public let startTime: TimeInterval
-    public let value: T
+    public var startTime: TimeInterval
+    public var value: T
 
     public init(startTime: TimeInterval, value: T) {
         self.startTime = startTime
@@ -29,6 +29,8 @@ extension RepeatingScheduleValue: Equatable where T: Equatable {
         return abs(lhs.startTime - rhs.startTime) < .ulpOfOne && lhs.value == rhs.value
     }
 }
+
+extension RepeatingScheduleValue: Hashable where T: Hashable {}
 
 public struct AbsoluteScheduleValue<T>: TimelineValue {
     public let startDate: Date
@@ -60,6 +62,7 @@ extension RepeatingScheduleValue: RawRepresentable where T: RawRepresentable {
     }
 }
 
+extension RepeatingScheduleValue: Codable where T: Codable {}
 
 public protocol DailySchedule {
     associatedtype T
@@ -80,15 +83,21 @@ public extension DailySchedule {
     }
 }
 
+extension DailySchedule where T: Comparable {
+    public func valueRange() -> ClosedRange<T> {
+        items.range(of: { $0.value })!
+    }
+}
 
 public struct DailyValueSchedule<T>: DailySchedule {
     let referenceTimeInterval: TimeInterval
-    let repeatInterval = TimeInterval(hours: 24)
+    let repeatInterval: TimeInterval
 
     public let items: [RepeatingScheduleValue<T>]
     public var timeZone: TimeZone
 
     public init?(dailyItems: [RepeatingScheduleValue<T>], timeZone: TimeZone? = nil) {
+        self.repeatInterval = TimeInterval(hours: 24)
         self.items = dailyItems.sorted { $0.startTime < $1.startTime }
         self.timeZone = timeZone ?? TimeZone.currentFixed
 
@@ -247,6 +256,7 @@ extension DailyValueSchedule: RawRepresentable, CustomDebugStringConvertible whe
     }
 }
 
+extension DailyValueSchedule: Codable where T: Codable {}
 
 extension DailyValueSchedule: Equatable where T: Equatable {}
 

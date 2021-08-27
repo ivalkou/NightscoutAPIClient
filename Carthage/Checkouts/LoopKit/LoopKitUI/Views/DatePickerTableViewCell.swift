@@ -8,7 +8,7 @@
 
 import UIKit
 
-public protocol DatePickerTableViewCellDelegate: class {
+public protocol DatePickerTableViewCellDelegate: AnyObject {
     func datePickerTableViewCellDidUpdateDate(_ cell: DatePickerTableViewCell)
 }
 
@@ -20,7 +20,18 @@ open class DatePickerTableViewCell: UITableViewCell {
             return datePicker.date
         }
         set {
-            datePicker.setDate(newValue, animated: true)
+            if let maximumDate = datePicker.maximumDate,
+                newValue >= maximumDate
+            {
+                datePicker.setDate(maximumDate, animated: true)
+            } else if let minimumDate = datePicker.minimumDate,
+                newValue <= minimumDate
+            {
+                datePicker.setDate(minimumDate, animated: true)
+            } else {
+                datePicker.setDate(newValue, animated: true)
+            }
+            dateChanged(datePicker)
             updateDateLabel()
         }
     }

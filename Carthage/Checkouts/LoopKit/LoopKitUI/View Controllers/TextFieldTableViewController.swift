@@ -9,7 +9,7 @@
 import UIKit
 
 
-public protocol TextFieldTableViewControllerDelegate: class {
+public protocol TextFieldTableViewControllerDelegate: AnyObject {
     func textFieldTableViewControllerDidEndEditing(_ controller: TextFieldTableViewController)
 
     func textFieldTableViewControllerDidReturn(_ controller: TextFieldTableViewController)
@@ -35,6 +35,8 @@ open class TextFieldTableViewController: UITableViewController, UITextFieldDeleg
     public var contextHelp: String?
 
     public var keyboardType = UIKeyboardType.default
+
+    public var autocapitalizationType = UITextAutocapitalizationType.sentences
 
     open weak var delegate: TextFieldTableViewControllerDelegate?
 
@@ -70,6 +72,7 @@ open class TextFieldTableViewController: UITableViewController, UITextFieldDeleg
         cell.textField.text = value
         cell.textField.keyboardType = keyboardType
         cell.textField.placeholder = placeholder
+        cell.textField.autocapitalizationType = autocapitalizationType
         cell.unitLabel?.text = unit
 
         return cell

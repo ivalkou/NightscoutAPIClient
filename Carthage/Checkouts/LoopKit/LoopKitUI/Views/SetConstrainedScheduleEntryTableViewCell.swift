@@ -10,7 +10,7 @@ import Foundation
 import HealthKit
 import LoopKit
 
-protocol SetConstrainedScheduleEntryTableViewCellDelegate: class {
+protocol SetConstrainedScheduleEntryTableViewCellDelegate: AnyObject {
     func setConstrainedScheduleEntryTableViewCellDidUpdate(_ cell: SetConstrainedScheduleEntryTableViewCell)
 }
 
@@ -188,7 +188,7 @@ class SetConstrainedScheduleEntryTableViewCell: UITableViewCell {
         if let value = value, allowedValues.contains(value) {
             valueLabel.textColor = nil  // Default color
         } else {
-            valueLabel.textColor = .invalid
+            valueLabel.textColor = .systemRed
         }
     }
 
