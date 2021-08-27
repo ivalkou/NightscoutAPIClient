@@ -35,9 +35,18 @@ final class SettingsViewModel: ObservableObject {
 
 public struct SettingsView: View {
     @ObservedObject var viewModel: SettingsViewModel
-
+    @State private var showingDeletionSheet = false
+    
     public var body: some View {
-        NavigationView {
+        VStack {
+            Spacer()
+            Text("Nightscout")
+                .font(.largeTitle)
+                .fontWeight(.semibold)
+            Image("nightscout", bundle: frameworkBundle)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 150, height: 150)
             Form {
                 Section(
                     footer: Text("Select Upload option if you want the application to upload BG to Nightscout.", bundle: frameworkBundle)
@@ -47,7 +56,7 @@ public struct SettingsView: View {
                         Text("Upload to remote service", bundle: frameworkBundle)
                     }
                 }
-
+                
                 Section(
                     footer: Text("Use Kalman filter to smooth out a sensor noise.", bundle: frameworkBundle)
                 ) {
@@ -55,25 +64,24 @@ public struct SettingsView: View {
                         Text("Use glucose filter", bundle: frameworkBundle)
                     }
                 }
-
+                
                 Section {
-                    Button(action: {
-                        self.viewModel.onDelete.send()
-                    }) {
-                        Text("Delete CGM", bundle: frameworkBundle).foregroundColor(.red)
+                    HStack {
+                        Spacer()
+                        deleteCGMButton
+                        Spacer()
                     }
                 }
             }
-            .navigationBarTitle(Text("Nightscout CGM", bundle: frameworkBundle))
-            .navigationBarItems(
-                leading: Button(action: {
-                    self.viewModel.onClose.send()
-                }, label: {
-                    Text("Close", bundle: frameworkBundle)
-                })
-            )
         }
-        
+        .navigationBarTitle(Text("CGM Settings", bundle: frameworkBundle))
+        .navigationBarItems(
+            trailing: Button(action: {
+                self.viewModel.onClose.send()
+            }, label: {
+                Text("Done", bundle: frameworkBundle)
+            })
+        )
     }
 
     private func verifyUrl (urlString: String) -> Bool {
@@ -81,6 +89,24 @@ public struct SettingsView: View {
             return UIApplication.shared.canOpenURL(url)
         }
         return false
+    }
+    
+    private var deleteCGMButton: some View {
+        Button(action: {
+            showingDeletionSheet = true
+        }, label: {
+            Text("Delete CGM", bundle: frameworkBundle).foregroundColor(.red)
+        }).actionSheet(isPresented: $showingDeletionSheet) {
+            ActionSheet(
+                title: Text("Are you sure you want to delete this CGM?"),
+                buttons: [
+                    .destructive(Text("Delete CGM")) {
+                        self.viewModel.onDelete.send()
+                    },
+                    .cancel(),
+                ]
+            )
+        }
     }
 }
 

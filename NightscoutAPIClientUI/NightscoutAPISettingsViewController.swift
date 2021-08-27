@@ -14,17 +14,18 @@ import NightscoutAPIClient
 import Combine
 
 public final class NightscoutAPISettingsViewController: UIHostingController<SettingsView>, CompletionNotifying {
+    
     public var completionDelegate: CompletionDelegate?
 
     public let cgmManager: NightscoutAPIManager
 
-    public let glucoseUnit: HKUnit
+    public let glucoseUnit: DisplayGlucoseUnitObservable
 
     private var viewModel: SettingsViewModel
 
     private var lifetime: AnyCancellable?
 
-    public init(cgmManager: NightscoutAPIManager, glucoseUnit: HKUnit) {
+    public init(cgmManager: NightscoutAPIManager, glucoseUnit: DisplayGlucoseUnitObservable) {
         self.cgmManager = cgmManager
         self.glucoseUnit = glucoseUnit
         self.viewModel = SettingsViewModel(

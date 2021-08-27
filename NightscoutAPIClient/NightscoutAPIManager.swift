@@ -11,6 +11,34 @@ import HealthKit
 import Combine
 
 public class NightscoutAPIManager: CGMManager {
+    
+    public static let managerIdentifier = "NightscoutAPIClient"
+    
+    public var managerIdentifier: String {
+        return NightscoutAPIManager.managerIdentifier
+    }
+
+    public static let localizedTitle = LocalizedString("Nightscout CGM", comment: "Title for the CGMManager option")
+    
+    public var localizedTitle: String {
+        return NightscoutAPIManager.localizedTitle
+    }
+    
+    public var glucoseDisplay: GlucoseDisplayable? { latestBackfill }
+    
+    public var cgmManagerStatus: CGMManagerStatus {
+        //TODO: Probably need a better way to calculate this.
+        if let latestGlucose = latestBackfill, latestGlucose.startDate.timeIntervalSinceNow > -TimeInterval(minutes: 4.5) {
+            return .init(hasValidSensorSession: true)
+        } else {
+            return .init(hasValidSensorSession: false)
+        }
+    }
+    
+    public var isOnboarded: Bool {
+        return keychain.getNightscoutCgmURL() != nil
+    }
+    
     public enum CGMError: String, Error {
         case tooFlatData = "BG data is too flat."
     }
@@ -20,8 +48,6 @@ public class NightscoutAPIManager: CGMManager {
         static let useFilterKey = "NightscoutAPIClient.useFilter"
         static let filterNoise = 2.5
     }
-
-    public static var managerIdentifier = "NightscoutAPIClient"
 
     public init() {
         nightscoutService = NightscoutAPIService(keychainManager: keychain)
@@ -50,8 +76,6 @@ public class NightscoutAPIManager: CGMManager {
         }
     }
 
-    public static var localizedTitle = LocalizedString("Nightscout CGM", comment: "Title for the CGMManager option")
-
     public let delegate = WeakSynchronizedDelegate<CGMManagerDelegate>()
 
     public var delegateQueue: DispatchQueue! {
@@ -74,15 +98,13 @@ public class NightscoutAPIManager: CGMManager {
 
     public private(set) var latestBackfill: BloodGlucose?
 
-    public var sensorState: SensorDisplayable? { latestBackfill }
-
     private var requestReceiver: Cancellable?
 
     private let processQueue = DispatchQueue(label: "NightscoutAPIManager.processQueue")
 
     private var isFetching = false
 
-    public func fetchNewDataIfNeeded(_ completion: @escaping (CGMResult) -> Void) {
+    public func fetchNewDataIfNeeded(_ completion: @escaping (CGMReadingResult) -> Void) {
         guard let nightscoutClient = nightscoutService.client, !isFetching else {
             delegateQueue.async {
                 completion(.noData)
@@ -153,7 +175,7 @@ public class NightscoutAPIManager: CGMManager {
                 }
                 let newGlucose = filteredGlucose.filterDateRange(startDate, nil)
                 let newSamples = newGlucose.filter({ $0.isStateValid }).map {
-                    return NewGlucoseSample(date: $0.startDate, quantity: $0.quantity, isDisplayOnly: false, syncIdentifier: "\(Int($0.startDate.timeIntervalSince1970))", device: self.device)
+                    return NewGlucoseSample(date: $0.startDate, quantity: $0.quantity, trend: $0.trendType, isDisplayOnly: false, wasUserEntered: false, syncIdentifier: "\(Int($0.startDate.timeIntervalSince1970))", device: self.device)
                 }
 
                 self.latestBackfill = newGlucose.first
@@ -198,10 +220,23 @@ public class NightscoutAPIManager: CGMManager {
             self.fetchNewDataIfNeeded { result in
                 guard case .newData = result else { return }
                 self.delegate.notify { delegate in
-                    delegate?.cgmManager(self, didUpdateWith: result)
+                    delegate?.cgmManager(self, hasNew: result)
                 }
             }
         }
         updateTimer.resume()
     }
+}
+
+// MARK: - AlertResponder implementation
+extension NightscoutAPIManager {
+    public func acknowledgeAlert(alertIdentifier: Alert.AlertIdentifier, completion: @escaping (Error?) -> Void) {
+        completion(nil)
+    }
+}
+
+// MARK: - AlertSoundVendor implementation
+extension NightscoutAPIManager {
+    public func getSoundBaseURL() -> URL? { return nil }
+    public func getSounds() -> [Alert.Sound] { return [] }
 }

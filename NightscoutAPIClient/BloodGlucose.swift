@@ -53,13 +53,19 @@ extension BloodGlucose: GlucoseValue {
     public var quantity: HKQuantity { .init(unit: .milligramsPerDeciliter, doubleValue: Double(glucose)) }
 }
 
-extension BloodGlucose: SensorDisplayable {
+extension BloodGlucose: GlucoseDisplayable {
+    
     public var isStateValid: Bool { glucose >= 39 && noise ?? 1 != 4 }
     public var trendType: GlucoseTrend? { direction?.trend }
     public var isLocal: Bool { false }
+    
+    // TODO Placeholder. This functionality will come with LOOP-1311
+    public var glucoseRangeCategory: GlucoseRangeCategory? {
+        return nil
+    }
 }
 
-extension SensorDisplayable {
+extension GlucoseDisplayable {
     public var stateDescription: String {
         if isStateValid {
             return LocalizedString("OK", comment: "Sensor state description for the valid state")

@@ -12,9 +12,9 @@ import LoopKit
 import LoopKitUI
 import NightscoutAPIClient
 
-final class NightscoutAPISetupViewController: UINavigationController, CGMManagerSetupViewController, CompletionNotifying {
-    public var setupDelegate: CGMManagerSetupViewControllerDelegate?
+final class NightscoutAPISetupViewController: UINavigationController, CompletionNotifying, CGMManagerOnboarding {
     
+    weak var cgmManagerOnboardingDelegate: CGMManagerOnboardingDelegate?
     weak var completionDelegate: CompletionDelegate?
 
     let cgmManager = NightscoutAPIManager()
@@ -41,7 +41,8 @@ final class NightscoutAPISetupViewController: UINavigationController, CGMManager
     }
 
     @objc private func save() {
-        setupDelegate?.cgmManagerSetupViewController(self, didSetUpCGMManager: cgmManager)
+        cgmManagerOnboardingDelegate?.cgmManagerOnboarding(didCreateCGMManager: cgmManager)
+        cgmManagerOnboardingDelegate?.cgmManagerOnboarding(didOnboardCGMManager: cgmManager)
         completionDelegate?.completionNotifyingDidComplete(self)
     }
 
