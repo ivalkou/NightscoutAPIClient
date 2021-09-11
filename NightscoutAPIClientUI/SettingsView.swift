@@ -57,13 +57,16 @@ public struct SettingsView: View {
                     }
                 }
                 
-                Section(
-                    footer: Text("Use Kalman filter to smooth out a sensor noise.", bundle: frameworkBundle)
-                ) {
-                    Toggle(isOn: $viewModel.filter) {
-                        Text("Use glucose filter", bundle: frameworkBundle)
-                    }
-                }
+                //Kalman filter disabled for Loop dev integration with
+                //understanding this type of filtering could instead be done at the data
+                //generation side of the CGM.
+//                Section(
+//                    footer: Text("Use Kalman filter to smooth out a sensor noise.", bundle: frameworkBundle)
+//                ) {
+//                    Toggle(isOn: $viewModel.filter) {
+//                        Text("Use glucose filter", bundle: frameworkBundle)
+//                    }
+//                }
                 
                 Section {
                     HStack {
