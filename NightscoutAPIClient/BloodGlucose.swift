@@ -63,6 +63,10 @@ extension BloodGlucose: GlucoseDisplayable {
     public var glucoseRangeCategory: GlucoseRangeCategory? {
         return nil
     }
+    
+    public var trendRate: HKQuantity? {
+        return nil
+    }
 }
 
 extension GlucoseDisplayable {

@@ -29,9 +29,9 @@ public class NightscoutAPIManager: CGMManager {
     public var cgmManagerStatus: CGMManagerStatus {
         //TODO: Probably need a better way to calculate this.
         if let latestGlucose = latestBackfill, latestGlucose.startDate.timeIntervalSinceNow > -TimeInterval(minutes: 4.5) {
-            return .init(hasValidSensorSession: true)
+            return .init(hasValidSensorSession: true, device: device)
         } else {
-            return .init(hasValidSensorSession: false)
+            return .init(hasValidSensorSession: false, device: device)
         }
     }
     
@@ -175,7 +175,7 @@ public class NightscoutAPIManager: CGMManager {
                 }
                 let newGlucose = filteredGlucose.filterDateRange(startDate, nil)
                 let newSamples = newGlucose.filter({ $0.isStateValid }).map {
-                    return NewGlucoseSample(date: $0.startDate, quantity: $0.quantity, trend: $0.trendType, isDisplayOnly: false, wasUserEntered: false, syncIdentifier: "\(Int($0.startDate.timeIntervalSince1970))", device: self.device)
+                    return NewGlucoseSample(date: $0.startDate, quantity: $0.quantity, condition: nil, trend: $0.trendType, trendRate: $0.trendRate, isDisplayOnly: false, wasUserEntered: false, syncIdentifier: "\(Int($0.startDate.timeIntervalSince1970))", device: self.device)
                 }
 
                 self.latestBackfill = newGlucose.first
