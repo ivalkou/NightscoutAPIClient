@@ -5,5 +5,9 @@
 "Use Kalman filter to smooth out a sensor noise." = "Use Kalman filter to smooth out a sensor noise.";
 
 "Delete CGM" = "Delete CGM";
-"Nightscout CGM" = "Nightscout CGM";
+"Nightscout Remote CGM" = "Nightscout Remote CGM";
 "Close" = "Close";
+
+"Service Description" = "The Nightscout Remote CGM source will use your CGM data from Nightscout and make it available in Loop. This is useful if you can't add your CGM device to Loop but your CGM data is available on Nightscout.
+
+It is not recommended to use this for therapy due to the risk of network outages and the lack of app background support.";

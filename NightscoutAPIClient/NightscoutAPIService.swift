@@ -12,14 +12,14 @@ import Combine
 public class NightscoutAPIService: ServiceAuthentication {
     public var credentialValues: [String?]
 
-    public let title = LocalizedString("Nightscout CGM", comment: "The title of the Nightscout service")
+    public let title = LocalizedString("Nightscout Remote CGM", comment: "The title of the Nightscout service")
 
-    public init(url: URL?) {
-        credentialValues = [url?.absoluteString]
+    public init(url: URL?, apiSecret: String?) {
+        credentialValues = [url?.absoluteString, apiSecret]
 
         if let url = url {
             isAuthorized = true
-            client = NightscoutAPIClient(url: url)
+            client = NightscoutAPIClient(url: url, apiSecret: apiSecret)
         }
     }
 
@@ -30,6 +30,13 @@ public class NightscoutAPIService: ServiceAuthentication {
             return nil
         }
         return URL(string: urlString)
+    }
+    
+    public var apiSecret: String? {
+        guard let apiSecret = credentialValues[1] else {
+            return nil
+        }
+        return apiSecret
     }
 
     public var isAuthorized = false
@@ -42,7 +49,7 @@ public class NightscoutAPIService: ServiceAuthentication {
             return
         }
 
-        let client = NightscoutAPIClient(url: url)
+        let client = NightscoutAPIClient(url: url, apiSecret: apiSecret)
         requestReceiver?.cancel()
         requestReceiver = client.fetchLast(1)
             .sink(receiveCompletion: { finish in
@@ -71,12 +78,12 @@ extension KeychainManager {
         static let nightscoutCgmSecret = ""
     }
 
-    func setNightscoutCgmURL(_ url: URL?) {
+    func setNightscoutCgmCredentials(_ url: URL?, apiSecret: String?) {
         do {
             let credentials: InternetCredentials?
 
-            if let url = url {
-                credentials = InternetCredentials(username: Config.nightscoutCgmLabel, password: Config.nightscoutCgmSecret, url: url)
+            if let url = url, let apiSecret = apiSecret {
+                credentials = InternetCredentials(username: Config.nightscoutCgmLabel, password: apiSecret, url: url)
             } else {
                 credentials = nil
             }
@@ -93,10 +100,19 @@ extension KeychainManager {
             return nil
         }
     }
+    
+    func getNightscoutAPISecret() -> String? {
+        do {
+            let credentials = try getInternetCredentials(account: Config.nightscoutCgmLabel)
+            return credentials.password
+        } catch {
+            return nil
+        }
+    }
 }
 
 extension NightscoutAPIService {
     public convenience init(keychainManager: KeychainManager = KeychainManager()) {
-        self.init(url: keychainManager.getNightscoutCgmURL())
+        self.init(url: keychainManager.getNightscoutCgmURL(), apiSecret: keychainManager.getNightscoutAPISecret())
     }
 }

@@ -18,7 +18,7 @@ public class NightscoutAPIManager: CGMManager {
         return NightscoutAPIManager.managerIdentifier
     }
 
-    public static let localizedTitle = LocalizedString("Nightscout CGM", comment: "Title for the CGMManager option")
+    public static let localizedTitle = LocalizedString("Nightscout Remote CGM", comment: "Title for the CGMManager option")
     
     public var localizedTitle: String {
         return NightscoutAPIManager.localizedTitle
@@ -44,7 +44,6 @@ public class NightscoutAPIManager: CGMManager {
     }
 
     private enum Config {
-        static let shouldSyncKey = "NightscoutAPIClient.shouldSync"
         static let useFilterKey = "NightscoutAPIClient.useFilter"
         static let filterNoise = 2.5
     }
@@ -57,13 +56,11 @@ public class NightscoutAPIManager: CGMManager {
 
     public convenience required init?(rawState: CGMManager.RawStateValue) {
         self.init()
-        shouldSyncToRemoteService = rawState[Config.shouldSyncKey] as? Bool ?? false
         useFilter = rawState[Config.useFilterKey] as? Bool ?? false
     }
 
     public var rawState: CGMManager.RawStateValue {
         [
-            Config.shouldSyncKey: shouldSyncToRemoteService,
             Config.useFilterKey: useFilter
         ]
     }
@@ -72,7 +69,7 @@ public class NightscoutAPIManager: CGMManager {
 
     public var nightscoutService: NightscoutAPIService {
         didSet {
-            keychain.setNightscoutCgmURL(nightscoutService.url)
+            keychain.setNightscoutCgmCredentials(nightscoutService.url, apiSecret: nightscoutService.apiSecret)
         }
     }
 

@@ -13,23 +13,11 @@ private let frameworkBundle = Bundle(for: SettingsViewModel.self)
 
 final class SettingsViewModel: ObservableObject {
     let url: String
-    var upload: Bool {
-        didSet { onUpload.send(upload) }
-    }
-
-    var filter: Bool {
-        didSet { onFilter.send(filter) }
-    }
-
     let onDelete = PassthroughSubject<Void, Never>()
     let onClose = PassthroughSubject<Void, Never>()
-    let onUpload = PassthroughSubject<Bool, Never>()
-    let onFilter = PassthroughSubject<Bool, Never>()
 
-    init(url: String, upload: Bool, filter: Bool) {
+    init(url: String) {
         self.url = url
-        self.upload = upload
-        self.filter = filter
     }
 }
 
@@ -40,34 +28,17 @@ public struct SettingsView: View {
     public var body: some View {
         VStack {
             Spacer()
-            Text("Nightscout")
-                .font(.largeTitle)
+            Text(LocalizedString("Nightscout Remote CGM", comment: "Title for the CGMManager option"))
+                .font(.title)
                 .fontWeight(.semibold)
             Image("nightscout", bundle: frameworkBundle)
                 .resizable()
                 .aspectRatio(contentMode: .fill)
-                .frame(width: 150, height: 150)
+                .frame(width: 100, height: 100)
             Form {
-                Section(
-                    footer: Text("Select Upload option if you want the application to upload BG to Nightscout.", bundle: frameworkBundle)
-                ) {
+                Section {
                     Text(viewModel.url)
-                    Toggle(isOn: $viewModel.upload) {
-                        Text("Upload to remote service", bundle: frameworkBundle)
-                    }
                 }
-                
-                //Kalman filter disabled for Loop dev integration with
-                //understanding this type of filtering could instead be done at the data
-                //generation side of the CGM.
-//                Section(
-//                    footer: Text("Use Kalman filter to smooth out a sensor noise.", bundle: frameworkBundle)
-//                ) {
-//                    Toggle(isOn: $viewModel.filter) {
-//                        Text("Use glucose filter", bundle: frameworkBundle)
-//                    }
-//                }
-                
                 Section {
                     HStack {
                         Spacer()
@@ -76,6 +47,7 @@ public struct SettingsView: View {
                     }
                 }
             }
+            Spacer()
         }
         .navigationBarTitle(Text("CGM Settings", bundle: frameworkBundle))
         .navigationBarItems(
@@ -115,6 +87,6 @@ public struct SettingsView: View {
 
 struct SettingsView_Previews: PreviewProvider {
     static var previews: some View {
-        SettingsView(viewModel: SettingsViewModel(url: "https://cgm.example.com", upload: false, filter: false)).environment(\.colorScheme, .dark)
+        SettingsView(viewModel: SettingsViewModel(url: "https://cgm.example.com")).environment(\.colorScheme, .dark)
     }
 }

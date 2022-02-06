@@ -5,5 +5,5 @@
 "Use Kalman filter to smooth out a sensor noise." = "Использовать фильтр Калмана, чтобы сгладить шумы сенсора.";
 
 "Delete CGM" = "Удалить мониторинг";
-"Nightscout CGM" = "Nightscout CGM";
+"Nightscout Remote CGM" = "Nightscout Remote CGM";
 "Close" = "Закрыть";
