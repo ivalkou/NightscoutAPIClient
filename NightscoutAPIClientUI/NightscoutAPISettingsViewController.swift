@@ -28,9 +28,7 @@ public final class NightscoutAPISettingsViewController: UIHostingController<Sett
     public init(cgmManager: NightscoutAPIManager, glucoseUnit: DisplayGlucoseUnitObservable) {
         self.cgmManager = cgmManager
         self.glucoseUnit = glucoseUnit
-        self.viewModel = SettingsViewModel(
-            url: cgmManager.nightscoutService.url?.absoluteString ?? ""
-        )
+        self.viewModel = SettingsViewModel(nightscoutService: cgmManager.nightscoutService)
         let view = SettingsView(viewModel: self.viewModel)
         super.init(rootView: view)
 

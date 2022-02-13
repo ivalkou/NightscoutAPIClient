@@ -8,18 +8,29 @@
 
 import SwiftUI
 import Combine
+import NightscoutAPIClient
 
 private let frameworkBundle = Bundle(for: SettingsViewModel.self)
 
 final class SettingsViewModel: ObservableObject {
-    let url: String
+    let nightscoutService: NightscoutAPIService
     @Published var serviceStatus: ServiceStatus = .unknown
-    let onAppear = PassthroughSubject<Void, Never>()
+    var url: String {
+        return nightscoutService.url?.absoluteString ?? ""
+    }
     let onDelete = PassthroughSubject<Void, Never>()
     let onClose = PassthroughSubject<Void, Never>()
 
-    init(url: String) {
-        self.url = url
+    init(nightscoutService: NightscoutAPIService) {
+        self.nightscoutService = nightscoutService
+    }
+    
+    func viewDidAppear(){
+        nightscoutService.verify { success, error in
+            DispatchQueue.main.async {
+                self.serviceStatus = error != nil ? .error(error!) : .ok
+            }
+        }
     }
     
     enum ServiceStatus {
@@ -85,7 +96,7 @@ public struct SettingsView: View {
                 Text("Done", bundle: frameworkBundle)
             })
         ).onAppear {
-            viewModel.onAppear.send()
+            viewModel.viewDidAppear()
         }
     }
     
@@ -110,6 +121,6 @@ public struct SettingsView: View {
 
 struct SettingsView_Previews: PreviewProvider {
     static var previews: some View {
-        SettingsView(viewModel: SettingsViewModel(url: "https://cgm.example.com")).environment(\.colorScheme, .dark)
+        SettingsView(viewModel: SettingsViewModel(nightscoutService: NightscoutAPIService())).environment(\.colorScheme, .dark)
     }
 }
