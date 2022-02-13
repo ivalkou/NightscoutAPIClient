@@ -75,15 +75,15 @@ public class NightscoutAPIService: ServiceAuthentication {
 extension KeychainManager {
     private enum Config {
         static let nightscoutCgmLabel = "NightscoutCGM"
-        static let nightscoutCgmSecret = ""
+        static let nightscoutCgmEmptySecret = "" //Signify no secret with empty string
     }
 
     func setNightscoutCgmCredentials(_ url: URL?, apiSecret: String?) {
         do {
             let credentials: InternetCredentials?
 
-            if let url = url, let apiSecret = apiSecret {
-                credentials = InternetCredentials(username: Config.nightscoutCgmLabel, password: apiSecret, url: url)
+            if let url = url {
+                credentials = InternetCredentials(username: Config.nightscoutCgmLabel, password: apiSecret ?? Config.nightscoutCgmEmptySecret, url: url)
             } else {
                 credentials = nil
             }
@@ -104,6 +104,9 @@ extension KeychainManager {
     func getNightscoutAPISecret() -> String? {
         do {
             let credentials = try getInternetCredentials(account: Config.nightscoutCgmLabel)
+            guard credentials.password != Config.nightscoutCgmEmptySecret else {
+                return nil
+            }
             return credentials.password
         } catch {
             return nil
