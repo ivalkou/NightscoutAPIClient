@@ -13,11 +13,30 @@ private let frameworkBundle = Bundle(for: SettingsViewModel.self)
 
 final class SettingsViewModel: ObservableObject {
     let url: String
+    @Published var serviceStatus: ServiceStatus = .unknown
+    let onAppear = PassthroughSubject<Void, Never>()
     let onDelete = PassthroughSubject<Void, Never>()
     let onClose = PassthroughSubject<Void, Never>()
 
     init(url: String) {
         self.url = url
+    }
+    
+    enum ServiceStatus {
+        case unknown
+        case ok
+        case error(Error)
+        
+        func localizedString() -> String {
+            switch self {
+            case .unknown:
+                return ""
+            case .ok:
+                return "OK"
+            case.error(let err):
+                return "Error: " + err.localizedDescription
+            }
+        }
     }
 }
 
@@ -37,7 +56,16 @@ public struct SettingsView: View {
                 .frame(width: 100, height: 100)
             Form {
                 Section {
-                    Text(viewModel.url)
+                    HStack {
+                        Text("URL")
+                        Spacer()
+                        Text(viewModel.url)
+                    }
+                    HStack {
+                        Text("Status")
+                        Spacer()
+                        Text(String(describing: viewModel.serviceStatus.localizedString()))
+                    }
                 }
                 Section {
                     HStack {
@@ -56,14 +84,9 @@ public struct SettingsView: View {
             }, label: {
                 Text("Done", bundle: frameworkBundle)
             })
-        )
-    }
-
-    private func verifyUrl (urlString: String) -> Bool {
-        if let url = URL(string: urlString) {
-            return UIApplication.shared.canOpenURL(url)
+        ).onAppear {
+            viewModel.onAppear.send()
         }
-        return false
     }
     
     private var deleteCGMButton: some View {

@@ -19,9 +19,14 @@ extension NightscoutAPIService: ServiceAuthenticationUI {
             ),
             ServiceCredential(
                 title: LocalizedString("API Secret", comment: "The title of the Nightscout API secret credential"),
+                placeholder: "",
                 isSecret: true,
                 keyboardType: .default
             )
         ]
+    }
+    
+    public var credentialFormFieldHelperMessage: String? {
+        return "Include your API secret or token if your site restricts public access."
     }
 }
