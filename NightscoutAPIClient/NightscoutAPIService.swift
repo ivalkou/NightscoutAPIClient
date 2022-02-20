@@ -10,10 +10,15 @@ import LoopKit
 import Combine
 
 public class NightscoutAPIService: ServiceAuthentication {
-    public var credentialValues: [String?]
+    
+    private(set) var client: NightscoutAPIClient?
+    private var requestReceiver: Cancellable?
 
+    //ServiceAuthentication conformance
     public let title = LocalizedString("Nightscout Remote CGM", comment: "The title of the Nightscout service")
-
+    public var credentialValues: [String?]
+    public var isAuthorized = false
+    
     public init(url: URL?, apiSecret: String?) {
         credentialValues = [url?.absoluteString, apiSecret]
 
@@ -22,9 +27,7 @@ public class NightscoutAPIService: ServiceAuthentication {
             client = NightscoutAPIClient(url: url, apiSecret: apiSecret)
         }
     }
-
-    private(set) var client: NightscoutAPIClient?
-
+    
     public var url: URL? {
         guard let urlString = credentialValues[0] else {
             return nil
@@ -38,14 +41,12 @@ public class NightscoutAPIService: ServiceAuthentication {
         }
         return apiSecret
     }
-
-    public var isAuthorized = false
-
-    private var requestReceiver: Cancellable?
-
-    public func verify(_ completion: @escaping (Bool, Error?) -> Void) {
+    
+    public func checkServiceStatus(_ completion: @escaping (Result<Void, NightScoutAPIServiceError>) -> Void) {
+        
+        //Uses a cached result for verification.
         guard let url = url else {
-            completion(false, nil)
+            completion(.failure(.missingURL))
             return
         }
 
@@ -56,19 +57,63 @@ public class NightscoutAPIService: ServiceAuthentication {
                 switch finish {
                 case .finished: break
                 case let .failure(error):
-                    completion(false, error)
+                    completion(.failure(.apiError(error)))
                 }
             }, receiveValue: { glucose in
-                completion(!glucose.isEmpty, nil)
+                if glucose.isEmpty {
+                    completion(.failure(NightScoutAPIServiceError.emptyGlucose))
+                } else {
+                    completion(.success(()))
+                }
+
             })
 
         self.client = client
+    }
+    
+    
+    // MARK: - ServiceAuthentication conformance
+    
+    public func verify(_ completion: @escaping (Bool, Error?) -> Void) {
+        
+        //Uses a cached result for verification.
+        guard let _ = url else {
+            completion(true, nil)
+            return
+        }
+        
+        checkServiceStatus { result in
+            switch result {
+            case .success():
+                completion(true, nil)
+            case .failure(let err):
+                completion(false, err)
+            }
+        }
     }
 
     public func reset() {
         isAuthorized = false
         client = nil
         requestReceiver?.cancel()
+    }
+
+    
+    public enum NightScoutAPIServiceError: LocalizedError {
+        case emptyGlucose
+        case missingURL
+        case apiError(Error)
+        
+        public var errorDescription: String? {
+            switch self {
+            case .emptyGlucose:
+                return "No recent glucose values available."
+            case .missingURL:
+                return "Service is not setup."
+            case .apiError(let error):
+                return error.localizedDescription
+            }
+        }
     }
 }
 

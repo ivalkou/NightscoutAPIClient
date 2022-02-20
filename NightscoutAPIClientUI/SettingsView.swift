@@ -26,9 +26,18 @@ final class SettingsViewModel: ObservableObject {
     }
     
     func viewDidAppear(){
-        nightscoutService.verify { success, error in
+        updateServiceStatus()
+    }
+    
+    private func updateServiceStatus(){
+        nightscoutService.checkServiceStatus { result in
             DispatchQueue.main.async {
-                self.serviceStatus = error != nil ? .error(error!) : .ok
+                switch result {
+                case .success():
+                    self.serviceStatus = .ok
+                case .failure(let err):
+                    self.serviceStatus = .error(err)
+                }
             }
         }
     }
@@ -45,7 +54,7 @@ final class SettingsViewModel: ObservableObject {
             case .ok:
                 return "OK"
             case.error(let err):
-                return "Error: " + err.localizedDescription
+                return err.localizedDescription
             }
         }
     }
@@ -69,11 +78,13 @@ public struct SettingsView: View {
                 Section {
                     HStack {
                         Text("URL")
+                            .padding(.leading, 10)
                         Spacer()
                         Text(viewModel.url)
                     }
                     HStack {
                         Text("Status")
+                            .padding(.leading, 10)
                         Spacer()
                         Text(String(describing: viewModel.serviceStatus.localizedString()))
                     }
