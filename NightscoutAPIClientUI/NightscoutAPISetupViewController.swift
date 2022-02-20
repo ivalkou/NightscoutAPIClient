@@ -25,9 +25,7 @@ final class NightscoutAPISetupViewController: UINavigationController, Completion
     
     init() {
         
-        self.disclaimerViewModel = DisclaimerViewModel(
-            url: cgmManager.nightscoutService.url?.absoluteString ?? ""
-        )
+        self.disclaimerViewModel = DisclaimerViewModel()
         let disclaimerVC = NightscoutAPIDisclaimerViewController(cgmManager: cgmManager, disclaimerViewModel: disclaimerViewModel)
         
         super.init(rootViewController: disclaimerVC)

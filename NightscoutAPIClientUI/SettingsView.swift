@@ -14,7 +14,7 @@ private let frameworkBundle = Bundle(for: SettingsViewModel.self)
 
 final class SettingsViewModel: ObservableObject {
     let nightscoutService: NightscoutAPIService
-    @Published var serviceStatus: ServiceStatus = .unknown
+    @Published var serviceStatus: SettingsViewServiceStatus = .unknown
     var url: String {
         return nightscoutService.url?.absoluteString ?? ""
     }
@@ -42,7 +42,7 @@ final class SettingsViewModel: ObservableObject {
         }
     }
     
-    enum ServiceStatus {
+    enum SettingsViewServiceStatus {
         case unknown
         case ok
         case error(Error)
@@ -81,12 +81,14 @@ public struct SettingsView: View {
                             .padding(.leading, 10)
                         Spacer()
                         Text(viewModel.url)
+                            .padding(.leading, 10)
                     }
                     HStack {
                         Text("Status")
                             .padding(.leading, 10)
                         Spacer()
                         Text(String(describing: viewModel.serviceStatus.localizedString()))
+                            .padding(.leading, 10)
                     }
                 }
                 Section {

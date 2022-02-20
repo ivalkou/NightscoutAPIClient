@@ -13,11 +13,6 @@ public class NightscoutAPIService: ServiceAuthentication {
     
     private(set) var client: NightscoutAPIClient?
     private var requestReceiver: Cancellable?
-
-    //ServiceAuthentication conformance
-    public let title = LocalizedString("Nightscout Remote CGM", comment: "The title of the Nightscout service")
-    public var credentialValues: [String?]
-    public var isAuthorized = false
     
     public init(url: URL?, apiSecret: String?) {
         credentialValues = [url?.absoluteString, apiSecret]
@@ -44,12 +39,13 @@ public class NightscoutAPIService: ServiceAuthentication {
     
     public func checkServiceStatus(_ completion: @escaping (Result<Void, NightScoutAPIServiceError>) -> Void) {
         
-        //Uses a cached result for verification.
         guard let url = url else {
             completion(.failure(.missingURL))
             return
         }
 
+        //Not using client property in case called by ServiceAuthentication framework
+        //as it only gets set after first validation
         let client = NightscoutAPIClient(url: url, apiSecret: apiSecret)
         requestReceiver?.cancel()
         requestReceiver = client.fetchLast(1)
@@ -74,14 +70,11 @@ public class NightscoutAPIService: ServiceAuthentication {
     
     // MARK: - ServiceAuthentication conformance
     
+    public let title = LocalizedString("Nightscout Remote CGM", comment: "The title of the Nightscout service")
+    public var credentialValues: [String?]
+    public var isAuthorized = false
+    
     public func verify(_ completion: @escaping (Bool, Error?) -> Void) {
-        
-        //Uses a cached result for verification.
-        guard let _ = url else {
-            completion(true, nil)
-            return
-        }
-        
         checkServiceStatus { result in
             switch result {
             case .success():

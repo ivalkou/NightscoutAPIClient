@@ -11,14 +11,8 @@ import LoopKitUI
 import Combine
 
 final class DisclaimerViewModel: ObservableObject {
-    let url: String
-    
     let onCancel = PassthroughSubject<Void, Never>()
     let onContinue = PassthroughSubject<Void, Never>()
-    
-    init(url: String) {
-        self.url = url
-    }
 }
 
 public struct DisclaimerView: View {
@@ -60,6 +54,6 @@ public struct DisclaimerView: View {
 
 struct DislaimerView_Previews: PreviewProvider {
     static var previews: some View {
-        DisclaimerView(viewModel: DisclaimerViewModel(url: "https://cgm.example.com")).environment(\.colorScheme, .dark)
+        DisclaimerView(viewModel: DisclaimerViewModel()).environment(\.colorScheme, .dark)
     }
 }

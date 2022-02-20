@@ -45,7 +45,7 @@ final class NightscoutAPIClient {
 
         var request = URLRequest(url: components.url!)
         request.allowsConstrainedNetworkAccess = false
-        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.cachePolicy = .reloadIgnoringLocalCacheData //Was using old caches between login/logout without this.
         if let apiSecretSHA1 = apiSecret?.sha1() {
             request.setValue(apiSecretSHA1, forHTTPHeaderField: "api-secret")
         }
