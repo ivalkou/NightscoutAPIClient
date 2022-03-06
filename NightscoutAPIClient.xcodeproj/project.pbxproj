@@ -28,7 +28,6 @@
 		38F613AA234F3067003FB95D /* NightscoutAPIClient.h in Headers */ = {isa = PBXBuildFile; fileRef = 38F6139C234F3066003FB95D /* NightscoutAPIClient.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		38F613B7234F333C003FB95D /* LoopKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38F613B6234F333C003FB95D /* LoopKit.framework */; platformFilter = ios; };
 		38F613B9234F33B1003FB95D /* NightscoutAPIManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38F613B8234F33B1003FB95D /* NightscoutAPIManager.swift */; };
-		38F613BB234F3AD1003FB95D /* BloodGlucose.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38F613BA234F3AD1003FB95D /* BloodGlucose.swift */; };
 		38F613BE234F3E83003FB95D /* LocalizedString.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38F613BD234F3E83003FB95D /* LocalizedString.swift */; };
 		38F613C0234F401F003FB95D /* NightscoutAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38F613BF234F401F003FB95D /* NightscoutAPIService.swift */; };
 		38F613C2234F7FB9003FB95D /* NightscoutAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38F613C1234F7FB9003FB95D /* NightscoutAPIClient.swift */; };
@@ -36,6 +35,7 @@
 		38FEB836236082B900F1E810 /* HealthKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38FEB835236082B900F1E810 /* HealthKit.framework */; platformFilter = ios; };
 		A901264F26D95DFB0081BAD1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A901264E26D95DFB0081BAD1 /* Assets.xcassets */; };
 		A96EF0D8279F75DE00434E5D /* DisclaimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A96EF0D7279F75DE00434E5D /* DisclaimerView.swift */; };
+		A97B829827D4C275001B3AC1 /* NightscoutUploadKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A97B829727D4C275001B3AC1 /* NightscoutUploadKit.framework */; platformFilter = ios; };
 		A9BAC74426CDBBB4001C9493 /* NightscoutAPIClientPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9BAC74326CDBBB4001C9493 /* NightscoutAPIClientPlugin.swift */; };
 		A9BAC74626CDC3AA001C9493 /* Bundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9BAC74526CDC3AA001C9493 /* Bundle.swift */; };
 		A9BAC74926CDC3CD001C9493 /* OSLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9BAC74726CDC3B3001C9493 /* OSLog.swift */; };
@@ -102,7 +102,6 @@
 		38F613B3234F313A003FB95D /* Cartfile */ = {isa = PBXFileReference; lastKnownFileType = text; path = Cartfile; sourceTree = "<group>"; };
 		38F613B6234F333C003FB95D /* LoopKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = LoopKit.framework; path = Carthage/Build/iOS/LoopKit.framework; sourceTree = "<group>"; };
 		38F613B8234F33B1003FB95D /* NightscoutAPIManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightscoutAPIManager.swift; sourceTree = "<group>"; };
-		38F613BA234F3AD1003FB95D /* BloodGlucose.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BloodGlucose.swift; sourceTree = "<group>"; };
 		38F613BD234F3E83003FB95D /* LocalizedString.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizedString.swift; sourceTree = "<group>"; };
 		38F613BF234F401F003FB95D /* NightscoutAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightscoutAPIService.swift; sourceTree = "<group>"; };
 		38F613C1234F7FB9003FB95D /* NightscoutAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightscoutAPIClient.swift; sourceTree = "<group>"; };
@@ -110,6 +109,7 @@
 		38FEB835236082B900F1E810 /* HealthKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = HealthKit.framework; path = System/Library/Frameworks/HealthKit.framework; sourceTree = SDKROOT; };
 		A901264E26D95DFB0081BAD1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A96EF0D7279F75DE00434E5D /* DisclaimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisclaimerView.swift; sourceTree = "<group>"; };
+		A97B829727D4C275001B3AC1 /* NightscoutUploadKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NightscoutUploadKit.framework; path = "../../../../../Library/Developer/Xcode/DerivedData/Loop-dfjysjerglduzpdnvmjmaqvgtyio/Build/Products/Debug-iphoneos/NightscoutUploadKit.framework"; sourceTree = "<group>"; };
 		A9BAC72726CDB7A5001C9493 /* NightscoutAPIClientPlugin.loopplugin */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = NightscoutAPIClientPlugin.loopplugin; sourceTree = BUILT_PRODUCTS_DIR; };
 		A9BAC72A26CDB7A5001C9493 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A9BAC74326CDBBB4001C9493 /* NightscoutAPIClientPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightscoutAPIClientPlugin.swift; sourceTree = "<group>"; };
@@ -134,6 +134,7 @@
 			files = (
 				38FEB836236082B900F1E810 /* HealthKit.framework in Frameworks */,
 				38F613B7234F333C003FB95D /* LoopKit.framework in Frameworks */,
+				A97B829827D4C275001B3AC1 /* NightscoutUploadKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -214,7 +215,6 @@
 				38D9A6482413C0870099AAF0 /* KalmanFilter */,
 				38F6139C234F3066003FB95D /* NightscoutAPIClient.h */,
 				38F6139D234F3066003FB95D /* Info.plist */,
-				38F613BA234F3AD1003FB95D /* BloodGlucose.swift */,
 				38F613B8234F33B1003FB95D /* NightscoutAPIManager.swift */,
 				38F613BF234F401F003FB95D /* NightscoutAPIService.swift */,
 				38F613C1234F7FB9003FB95D /* NightscoutAPIClient.swift */,
@@ -234,6 +234,7 @@
 		38F613B5234F3315003FB95D /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				A97B829727D4C275001B3AC1 /* NightscoutUploadKit.framework */,
 				384D8F0D23608BEA00B1DD29 /* LoopKit.framework */,
 				38FEB835236082B900F1E810 /* HealthKit.framework */,
 				384D8F0A23608A4400B1DD29 /* HealthKit.framework */,
@@ -514,7 +515,6 @@
 				38FA78D32350C80600780D61 /* TimeInterval.swift in Sources */,
 				38F613B9234F33B1003FB95D /* NightscoutAPIManager.swift in Sources */,
 				38D9A6502413C0D30099AAF0 /* DoubleExtension.swift in Sources */,
-				38F613BB234F3AD1003FB95D /* BloodGlucose.swift in Sources */,
 				38B66F7023C4B96A009594BB /* DispatchTimer.swift in Sources */,
 				38D9A64E2413C0D30099AAF0 /* KalmanFilterType.swift in Sources */,
 				38F613C2234F7FB9003FB95D /* NightscoutAPIClient.swift in Sources */,

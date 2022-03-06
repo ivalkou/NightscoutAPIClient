@@ -17,7 +17,7 @@ public class NightscoutAPIService: ServiceAuthentication {
     public init(url: URL?, apiSecret: String?) {
         credentialValues = [url?.absoluteString, apiSecret]
 
-        if let url = url {
+        if let url = url, let apiSecret = apiSecret {
             isAuthorized = true
             client = NightscoutAPIClient(url: url, apiSecret: apiSecret)
         }
@@ -39,7 +39,7 @@ public class NightscoutAPIService: ServiceAuthentication {
     
     public func checkServiceStatus(_ completion: @escaping (Result<Void, NightScoutAPIServiceError>) -> Void) {
         
-        guard let url = url else {
+        guard let url = url, let apiSecret = apiSecret else {
             completion(.failure(.missingURL))
             return
         }
@@ -48,21 +48,19 @@ public class NightscoutAPIService: ServiceAuthentication {
         //as it only gets set after first validation
         let client = NightscoutAPIClient(url: url, apiSecret: apiSecret)
         requestReceiver?.cancel()
-        requestReceiver = client.fetchLast(1)
-            .sink(receiveCompletion: { finish in
-                switch finish {
-                case .finished: break
-                case let .failure(error):
-                    completion(.failure(.apiError(error)))
-                }
-            }, receiveValue: { glucose in
-                if glucose.isEmpty {
+
+        client.fetchRecent() { result in
+            switch result {
+            case .success(let entries):
+                if entries.isEmpty {
                     completion(.failure(NightScoutAPIServiceError.emptyGlucose))
                 } else {
                     completion(.success(()))
                 }
-
-            })
+            case let .failure(error):
+                completion(.failure(.apiError(error)))
+            }
+        }
 
         self.client = client
     }
@@ -113,15 +111,14 @@ public class NightscoutAPIService: ServiceAuthentication {
 extension KeychainManager {
     private enum Config {
         static let nightscoutCgmLabel = "NightscoutCGM"
-        static let nightscoutCgmEmptySecret = "" //Signify no secret with empty string
     }
 
     func setNightscoutCgmCredentials(_ url: URL?, apiSecret: String?) {
         do {
             let credentials: InternetCredentials?
 
-            if let url = url {
-                credentials = InternetCredentials(username: Config.nightscoutCgmLabel, password: apiSecret ?? Config.nightscoutCgmEmptySecret, url: url)
+            if let url = url, let apiSecret = apiSecret {
+                credentials = InternetCredentials(username: Config.nightscoutCgmLabel, password: apiSecret, url: url)
             } else {
                 credentials = nil
             }
@@ -142,9 +139,6 @@ extension KeychainManager {
     func getNightscoutAPISecret() -> String? {
         do {
             let credentials = try getInternetCredentials(account: Config.nightscoutCgmLabel)
-            guard credentials.password != Config.nightscoutCgmEmptySecret else {
-                return nil
-            }
             return credentials.password
         } catch {
             return nil

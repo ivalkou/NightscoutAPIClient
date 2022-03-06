@@ -9,6 +9,7 @@
 import LoopKit
 import HealthKit
 import Combine
+import NightscoutUploadKit
 
 public class NightscoutAPIManager: CGMManager {
     
@@ -93,7 +94,7 @@ public class NightscoutAPIManager: CGMManager {
 
     public var useFilter = false
 
-    public private(set) var latestBackfill: BloodGlucose?
+    public private(set) var latestBackfill: GlucoseEntry?
 
     private var requestReceiver: Cancellable?
 
@@ -118,73 +119,60 @@ public class NightscoutAPIManager: CGMManager {
 
         processQueue.async {
             self.isFetching = true
-            self.requestReceiver = nightscoutClient.fetchLast(12)
-            .sink(receiveCompletion: { finish in
-                switch finish {
-                case .finished: break
+
+            nightscoutClient.fetchRecent { fetchResult in
+                
+                self.isFetching = false
+                
+                switch fetchResult {
+                case .success(let glucoseEntries):
+                    guard !glucoseEntries.isEmpty else {
+                        self.delegateQueue.async {
+                            completion(.noData)
+                        }
+                        return
+                    }
+
+                    var filteredGlucose = glucoseEntries
+                    if self.useFilter {
+                        var filter = KalmanFilter(stateEstimatePrior: Double(glucoseEntries.last!.sgv), errorCovariancePrior: Config.filterNoise)
+                        filteredGlucose.removeAll()
+                        for var item in glucoseEntries.reversed() {
+                            let prediction = filter.predict(stateTransitionModel: 1, controlInputModel: 0, controlVector: 0, covarianceOfProcessNoise: Config.filterNoise)
+                            let update = prediction.update(measurement: Double(item.sgv), observationModel: 1, covarienceOfObservationNoise: Config.filterNoise)
+                            filter = update
+                            item.sgv = filter.stateEstimatePrior.rounded()
+                            filteredGlucose.append(item)
+                        }
+                        filteredGlucose = filteredGlucose.reversed()
+                    }
+
+                    let startDate = self.delegate.call { (delegate) -> Date? in
+                        return delegate?.startDateToFilterNewData(for: self)?.addingTimeInterval(TimeInterval(minutes: 1))
+                    }
+                    let newGlucose = filteredGlucose.filterDateRange(startDate, nil)
+                    let newSamples = newGlucose.filter({ $0.isStateValid }).map { glucose -> NewGlucoseSample in
+                        let glucoseTrend = glucose.trend != nil ? GlucoseTrend(rawValue: glucose.trend!) : nil
+                        return NewGlucoseSample(date: glucose.startDate, quantity: HKQuantity(unit: .milligramsPerDeciliter, doubleValue: glucose.sgv), condition: nil, trend: glucoseTrend, trendRate: nil, isDisplayOnly: false, wasUserEntered: false, syncIdentifier: "\(Int(glucose.startDate.timeIntervalSince1970))", device: self.device)
+                    }
+
+                    self.latestBackfill = newGlucose.first
+
+                    self.delegateQueue.async {
+                        guard !newSamples.isEmpty else {
+                            completion(.noData)
+                            return
+                        }
+                        completion(.newData(newSamples))
+                    }
                 case let .failure(error):
                     self.delegateQueue.async {
                         completion(.error(error))
                     }
                 }
-                self.isFetching = false
-            }, receiveValue: { [weak self] glucose in
-                guard let self = self else { return }
-                guard !glucose.isEmpty else {
-                    self.delegateQueue.async {
-                        completion(.noData)
-                    }
-                    return
-                }
 
-                let checkRange = glucose.filterDateRange(Date(timeIntervalSinceNow: -60 * 20), nil)
-                let tooFlat =
-                    checkRange.count > 1 && Set(
-                        checkRange
-                        .filter { $0.isStateValid }
-                        .map { $0.filtered ?? 0 }
-                        .filter { $0 != 0 }
-                ).count == 1
 
-                guard !tooFlat else {
-                    self.delegateQueue.async {
-                        completion(.error(CGMError.tooFlatData))
-                    }
-                    return
-                }
-
-                var filteredGlucose = glucose
-                if self.useFilter {
-                    var filter = KalmanFilter(stateEstimatePrior: Double(glucose.last!.glucose), errorCovariancePrior: Config.filterNoise)
-                    filteredGlucose.removeAll()
-                    for var item in glucose.reversed() {
-                        let prediction = filter.predict(stateTransitionModel: 1, controlInputModel: 0, controlVector: 0, covarianceOfProcessNoise: Config.filterNoise)
-                        let update = prediction.update(measurement: Double(item.glucose), observationModel: 1, covarienceOfObservationNoise: Config.filterNoise)
-                        filter = update
-                        item.sgv = Int(filter.stateEstimatePrior.rounded())
-                        filteredGlucose.append(item)
-                    }
-                    filteredGlucose = filteredGlucose.reversed()
-                }
-
-                let startDate = self.delegate.call { (delegate) -> Date? in
-                    return delegate?.startDateToFilterNewData(for: self)?.addingTimeInterval(TimeInterval(minutes: 1))
-                }
-                let newGlucose = filteredGlucose.filterDateRange(startDate, nil)
-                let newSamples = newGlucose.filter({ $0.isStateValid }).map {
-                    return NewGlucoseSample(date: $0.startDate, quantity: $0.quantity, condition: nil, trend: $0.trendType, trendRate: $0.trendRate, isDisplayOnly: false, wasUserEntered: false, syncIdentifier: "\(Int($0.startDate.timeIntervalSince1970))", device: self.device)
-                }
-
-                self.latestBackfill = newGlucose.first
-
-                self.delegateQueue.async {
-                    guard !newSamples.isEmpty else {
-                        completion(.noData)
-                        return
-                    }
-                    completion(.newData(newSamples))
-                }
-            })
+            }
         }
 
 
