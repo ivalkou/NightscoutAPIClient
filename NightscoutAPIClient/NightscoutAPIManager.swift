@@ -9,19 +9,45 @@
 import LoopKit
 import HealthKit
 import Combine
+import NightscoutUploadKit
 
 public class NightscoutAPIManager: CGMManager {
+    
+    public static let managerIdentifier = "NightscoutAPIClient"
+    
+    public var managerIdentifier: String {
+        return NightscoutAPIManager.managerIdentifier
+    }
+
+    public static let localizedTitle = LocalizedString("Nightscout Remote CGM", comment: "Title for the CGMManager option")
+    
+    public var localizedTitle: String {
+        return NightscoutAPIManager.localizedTitle
+    }
+    
+    public var glucoseDisplay: GlucoseDisplayable? { latestBackfill }
+    
+    public var cgmManagerStatus: CGMManagerStatus {
+        //TODO: Probably need a better way to calculate this.
+        if let latestGlucose = latestBackfill, latestGlucose.startDate.timeIntervalSinceNow > -TimeInterval(minutes: 4.5) {
+            return .init(hasValidSensorSession: true, device: device)
+        } else {
+            return .init(hasValidSensorSession: false, device: device)
+        }
+    }
+    
+    public var isOnboarded: Bool {
+        return keychain.getNightscoutCgmURL() != nil
+    }
+    
     public enum CGMError: String, Error {
         case tooFlatData = "BG data is too flat."
     }
 
     private enum Config {
-        static let shouldSyncKey = "NightscoutAPIClient.shouldSync"
         static let useFilterKey = "NightscoutAPIClient.useFilter"
         static let filterNoise = 2.5
     }
-
-    public static var managerIdentifier = "NightscoutAPIClient"
 
     public init() {
         nightscoutService = NightscoutAPIService(keychainManager: keychain)
@@ -31,13 +57,11 @@ public class NightscoutAPIManager: CGMManager {
 
     public convenience required init?(rawState: CGMManager.RawStateValue) {
         self.init()
-        shouldSyncToRemoteService = rawState[Config.shouldSyncKey] as? Bool ?? false
         useFilter = rawState[Config.useFilterKey] as? Bool ?? false
     }
 
     public var rawState: CGMManager.RawStateValue {
         [
-            Config.shouldSyncKey: shouldSyncToRemoteService,
             Config.useFilterKey: useFilter
         ]
     }
@@ -46,11 +70,9 @@ public class NightscoutAPIManager: CGMManager {
 
     public var nightscoutService: NightscoutAPIService {
         didSet {
-            keychain.setNightscoutCgmURL(nightscoutService.url)
+            keychain.setNightscoutCgmCredentials(nightscoutService.url, apiSecret: nightscoutService.apiSecret)
         }
     }
-
-    public static var localizedTitle = LocalizedString("Nightscout CGM", comment: "Title for the CGMManager option")
 
     public let delegate = WeakSynchronizedDelegate<CGMManagerDelegate>()
 
@@ -72,9 +94,7 @@ public class NightscoutAPIManager: CGMManager {
 
     public var useFilter = false
 
-    public private(set) var latestBackfill: BloodGlucose?
-
-    public var sensorState: SensorDisplayable? { latestBackfill }
+    public private(set) var latestBackfill: GlucoseEntry?
 
     private var requestReceiver: Cancellable?
 
@@ -82,7 +102,7 @@ public class NightscoutAPIManager: CGMManager {
 
     private var isFetching = false
 
-    public func fetchNewDataIfNeeded(_ completion: @escaping (CGMResult) -> Void) {
+    public func fetchNewDataIfNeeded(_ completion: @escaping (CGMReadingResult) -> Void) {
         guard let nightscoutClient = nightscoutService.client, !isFetching else {
             delegateQueue.async {
                 completion(.noData)
@@ -99,73 +119,62 @@ public class NightscoutAPIManager: CGMManager {
 
         processQueue.async {
             self.isFetching = true
-            self.requestReceiver = nightscoutClient.fetchLast(12)
-            .sink(receiveCompletion: { finish in
-                switch finish {
-                case .finished: break
+
+            nightscoutClient.fetchRecent { fetchResult in
+                
+                self.isFetching = false
+                
+                switch fetchResult {
+                case .success(let glucoseEntries):
+                    guard !glucoseEntries.isEmpty else {
+                        self.delegateQueue.async {
+                            completion(.noData)
+                        }
+                        return
+                    }
+
+                    var filteredGlucose = glucoseEntries
+                    if self.useFilter {
+                        var filter = KalmanFilter(stateEstimatePrior: Double(glucoseEntries.last!.sgv), errorCovariancePrior: Config.filterNoise)
+                        filteredGlucose.removeAll()
+                        for var item in glucoseEntries.reversed() {
+                            let prediction = filter.predict(stateTransitionModel: 1, controlInputModel: 0, controlVector: 0, covarianceOfProcessNoise: Config.filterNoise)
+                            let update = prediction.update(measurement: Double(item.sgv), observationModel: 1, covarienceOfObservationNoise: Config.filterNoise)
+                            filter = update
+                            item.sgv = filter.stateEstimatePrior.rounded()
+                            filteredGlucose.append(item)
+                        }
+                        filteredGlucose = filteredGlucose.reversed()
+                    }
+
+                    let startDate = self.delegate.call { (delegate) -> Date? in
+                        return delegate?.startDateToFilterNewData(for: self)
+                    }
+                    let newGlucose = filteredGlucose.filterDateRange(startDate, nil)
+                    let newSamples = newGlucose.filter({ $0.isStateValid }).map { glucose -> NewGlucoseSample in
+                        let glucoseTrend = glucose.trend != nil ? GlucoseTrend(rawValue: glucose.trend!) : nil
+                        return NewGlucoseSample(date: glucose.startDate, quantity: HKQuantity(unit: .milligramsPerDeciliter, doubleValue: glucose.sgv), condition: nil, trend: glucoseTrend, trendRate: nil, isDisplayOnly: false, wasUserEntered: false, syncIdentifier: "\(Int(glucose.startDate.timeIntervalSince1970))", device: self.device)
+                    }
+
+                    if let latestBackfill = newGlucose.max(by: {$0.startDate > $1.startDate}) {
+                        self.latestBackfill = latestBackfill
+                    }
+
+                    self.delegateQueue.async {
+                        guard !newSamples.isEmpty else {
+                            completion(.noData)
+                            return
+                        }
+                        completion(.newData(newSamples))
+                    }
                 case let .failure(error):
                     self.delegateQueue.async {
                         completion(.error(error))
                     }
                 }
-                self.isFetching = false
-            }, receiveValue: { [weak self] glucose in
-                guard let self = self else { return }
-                guard !glucose.isEmpty else {
-                    self.delegateQueue.async {
-                        completion(.noData)
-                    }
-                    return
-                }
 
-                let checkRange = glucose.filterDateRange(Date(timeIntervalSinceNow: -60 * 20), nil)
-                let tooFlat =
-                    checkRange.count > 1 && Set(
-                        checkRange
-                        .filter { $0.isStateValid }
-                        .map { $0.filtered ?? 0 }
-                        .filter { $0 != 0 }
-                ).count == 1
 
-                guard !tooFlat else {
-                    self.delegateQueue.async {
-                        completion(.error(CGMError.tooFlatData))
-                    }
-                    return
-                }
-
-                var filteredGlucose = glucose
-                if self.useFilter {
-                    var filter = KalmanFilter(stateEstimatePrior: Double(glucose.last!.glucose), errorCovariancePrior: Config.filterNoise)
-                    filteredGlucose.removeAll()
-                    for var item in glucose.reversed() {
-                        let prediction = filter.predict(stateTransitionModel: 1, controlInputModel: 0, controlVector: 0, covarianceOfProcessNoise: Config.filterNoise)
-                        let update = prediction.update(measurement: Double(item.glucose), observationModel: 1, covarienceOfObservationNoise: Config.filterNoise)
-                        filter = update
-                        item.sgv = Int(filter.stateEstimatePrior.rounded())
-                        filteredGlucose.append(item)
-                    }
-                    filteredGlucose = filteredGlucose.reversed()
-                }
-
-                let startDate = self.delegate.call { (delegate) -> Date? in
-                    return delegate?.startDateToFilterNewData(for: self)?.addingTimeInterval(TimeInterval(minutes: 1))
-                }
-                let newGlucose = filteredGlucose.filterDateRange(startDate, nil)
-                let newSamples = newGlucose.filter({ $0.isStateValid }).map {
-                    return NewGlucoseSample(date: $0.startDate, quantity: $0.quantity, isDisplayOnly: false, syncIdentifier: "\(Int($0.startDate.timeIntervalSince1970))", device: self.device)
-                }
-
-                self.latestBackfill = newGlucose.first
-
-                self.delegateQueue.async {
-                    guard !newSamples.isEmpty else {
-                        completion(.noData)
-                        return
-                    }
-                    completion(.newData(newSamples))
-                }
-            })
+            }
         }
 
 
@@ -198,10 +207,23 @@ public class NightscoutAPIManager: CGMManager {
             self.fetchNewDataIfNeeded { result in
                 guard case .newData = result else { return }
                 self.delegate.notify { delegate in
-                    delegate?.cgmManager(self, didUpdateWith: result)
+                    delegate?.cgmManager(self, hasNew: result)
                 }
             }
         }
         updateTimer.resume()
     }
+}
+
+// MARK: - AlertResponder implementation
+extension NightscoutAPIManager {
+    public func acknowledgeAlert(alertIdentifier: Alert.AlertIdentifier, completion: @escaping (Error?) -> Void) {
+        completion(nil)
+    }
+}
+
+// MARK: - AlertSoundVendor implementation
+extension NightscoutAPIManager {
+    public func getSoundBaseURL() -> URL? { return nil }
+    public func getSounds() -> [Alert.Sound] { return [] }
 }

@@ -14,24 +14,21 @@ import NightscoutAPIClient
 import Combine
 
 public final class NightscoutAPISettingsViewController: UIHostingController<SettingsView>, CompletionNotifying {
+    
     public var completionDelegate: CompletionDelegate?
 
     public let cgmManager: NightscoutAPIManager
 
-    public let glucoseUnit: HKUnit
+    public let glucoseUnit: DisplayGlucoseUnitObservable
 
     private var viewModel: SettingsViewModel
 
     private var lifetime: AnyCancellable?
 
-    public init(cgmManager: NightscoutAPIManager, glucoseUnit: HKUnit) {
+    public init(cgmManager: NightscoutAPIManager, glucoseUnit: DisplayGlucoseUnitObservable) {
         self.cgmManager = cgmManager
         self.glucoseUnit = glucoseUnit
-        self.viewModel = SettingsViewModel(
-            url: cgmManager.nightscoutService.url?.absoluteString ?? "",
-            upload: cgmManager.shouldSyncToRemoteService,
-            filter: cgmManager.useFilter
-        )
+        self.viewModel = SettingsViewModel(nightscoutService: cgmManager.nightscoutService)
         let view = SettingsView(viewModel: self.viewModel)
         super.init(rootView: view)
 
@@ -57,31 +54,9 @@ public final class NightscoutAPISettingsViewController: UIHostingController<Sett
                 }
             }
 
-        let onUpload = viewModel.onUpload
-            .sink { [weak self] upload in
-                guard let self = self else { return }
-                self.cgmManager.shouldSyncToRemoteService = upload
-                self.cgmManager.delegateQueue.async {
-                    self.cgmManager.cgmManagerDelegate?
-                        .cgmManagerDidUpdateState(self.cgmManager)
-                }
-            }
-
-        let onFilter = viewModel.onFilter
-            .sink { [weak self] filter in
-                guard let self = self else { return }
-                self.cgmManager.useFilter = filter
-                self.cgmManager.delegateQueue.async {
-                    self.cgmManager.cgmManagerDelegate?
-                        .cgmManagerDidUpdateState(self.cgmManager)
-                }
-            }
-
         lifetime = AnyCancellable {
             onClose.cancel()
             onDelete.cancel()
-            onUpload.cancel()
-            onFilter.cancel()
         }
     }
 

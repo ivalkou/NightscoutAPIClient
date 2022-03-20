@@ -7,29 +7,30 @@
 //
 
 import UIKit
+import SwiftUI
 import HealthKit
 import LoopKit
 import LoopKitUI
 import NightscoutAPIClient
+import Combine
 
-final class NightscoutAPISetupViewController: UINavigationController, CGMManagerSetupViewController, CompletionNotifying {
-    public var setupDelegate: CGMManagerSetupViewControllerDelegate?
+final class NightscoutAPISetupViewController: UINavigationController, CompletionNotifying, CGMManagerOnboarding {
     
+    weak var cgmManagerOnboardingDelegate: CGMManagerOnboardingDelegate?
     weak var completionDelegate: CompletionDelegate?
 
     let cgmManager = NightscoutAPIManager()
-
+    private var lifetime: AnyCancellable?
+    let disclaimerViewModel: DisclaimerViewModel
+    
     init() {
-        let authVC = AuthenticationViewController(authentication: cgmManager.nightscoutService)
-        super.init(rootViewController: authVC)
-
-        authVC.authenticationObserver = { [weak self] (service) in
-            authVC.navigationItem.rightBarButtonItem?.isEnabled = service.isAuthorized
-            self?.cgmManager.nightscoutService = service
-        }
-        authVC.navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .cancel, target: self, action: #selector(cancel))
-        authVC.navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .save, target: self, action: #selector(save))
-        authVC.navigationItem.rightBarButtonItem?.isEnabled = authVC.authentication.url != nil
+        
+        self.disclaimerViewModel = DisclaimerViewModel()
+        let disclaimerVC = NightscoutAPIDisclaimerViewController(cgmManager: cgmManager, disclaimerViewModel: disclaimerViewModel)
+        
+        super.init(rootViewController: disclaimerVC)
+        
+        self.subscribeOnDisclaimerChanges()
     }
 
     required init?(coder: NSCoder) {
@@ -41,8 +42,64 @@ final class NightscoutAPISetupViewController: UINavigationController, CGMManager
     }
 
     @objc private func save() {
-        setupDelegate?.cgmManagerSetupViewController(self, didSetUpCGMManager: cgmManager)
+        cgmManagerOnboardingDelegate?.cgmManagerOnboarding(didCreateCGMManager: cgmManager)
+        cgmManagerOnboardingDelegate?.cgmManagerOnboarding(didOnboardCGMManager: cgmManager)
         completionDelegate?.completionNotifyingDidComplete(self)
     }
+    
+    private func showAuthenticationViewController(){
+        let authVC = AuthenticationViewController(authentication: cgmManager.nightscoutService)
+        authVC.authenticationObserver = { [weak self] (service) in
+            authVC.navigationItem.rightBarButtonItem?.isEnabled = service.isAuthorized
+            self?.cgmManager.nightscoutService = service
+        }
+        
+        authVC.navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .save, target: self, action: #selector(save))
+        authVC.navigationItem.rightBarButtonItem?.isEnabled = authVC.authentication.url != nil
+        self.pushViewController(authVC, animated: true)
+    }
+    
+    private func dismissSetup(){
+        self.cgmManager.notifyDelegateOfDeletion {
+            DispatchQueue.main.async {
+                self.completionDelegate?.completionNotifyingDidComplete(self)
+                self.dismiss(animated: true)
+            }
+        }
+    }
+    
+    private func subscribeOnDisclaimerChanges() {
+        let onContinue = disclaimerViewModel.onContinue
+            .sink { [weak self] in
+                guard let self = self else { return }
+                self.showAuthenticationViewController()
+            }
+        let onCancel = disclaimerViewModel.onCancel
+            .sink { [weak self] in
+                guard let self = self else { return }
+                self.dismissSetup()
+            }
+        lifetime = AnyCancellable {
+            onContinue.cancel()
+            onCancel.cancel()
+        }
+    }
 
+}
+
+final class NightscoutAPIDisclaimerViewController: UIHostingController<DisclaimerView> {
+    
+    let cgmManager: NightscoutAPIManager
+    private var viewModel: DisclaimerViewModel
+    
+    public init(cgmManager: NightscoutAPIManager, disclaimerViewModel: DisclaimerViewModel) {
+        self.cgmManager = cgmManager
+        self.viewModel = disclaimerViewModel
+        let view = DisclaimerView(viewModel: self.viewModel)
+        super.init(rootView: view)
+    }
+
+    required public init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
 }

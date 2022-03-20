@@ -1,1 +1,2 @@
-github "LoopKit/LoopKit" "18a5a04afd310e945ac54f8c43a44838a16503c2"
+github "LoopKit/LoopKit" "410b09b3eecb830ceafa11e4615ac0b469a587de"
+github "i-schuetz/SwiftCharts" "0.6.5"
