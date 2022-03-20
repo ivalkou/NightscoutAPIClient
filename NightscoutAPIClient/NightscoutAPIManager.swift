@@ -148,7 +148,7 @@ public class NightscoutAPIManager: CGMManager {
                     }
 
                     let startDate = self.delegate.call { (delegate) -> Date? in
-                        return delegate?.startDateToFilterNewData(for: self)?.addingTimeInterval(TimeInterval(minutes: 1))
+                        return delegate?.startDateToFilterNewData(for: self)
                     }
                     let newGlucose = filteredGlucose.filterDateRange(startDate, nil)
                     let newSamples = newGlucose.filter({ $0.isStateValid }).map { glucose -> NewGlucoseSample in
@@ -156,7 +156,9 @@ public class NightscoutAPIManager: CGMManager {
                         return NewGlucoseSample(date: glucose.startDate, quantity: HKQuantity(unit: .milligramsPerDeciliter, doubleValue: glucose.sgv), condition: nil, trend: glucoseTrend, trendRate: nil, isDisplayOnly: false, wasUserEntered: false, syncIdentifier: "\(Int(glucose.startDate.timeIntervalSince1970))", device: self.device)
                     }
 
-                    self.latestBackfill = newGlucose.first
+                    if let latestBackfill = newGlucose.max(by: {$0.startDate > $1.startDate}) {
+                        self.latestBackfill = latestBackfill
+                    }
 
                     self.delegateQueue.async {
                         guard !newSamples.isEmpty else {

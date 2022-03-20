@@ -25,7 +25,7 @@ final class NightscoutAPIClient {
         let client = NightscoutUploader(siteURL: url, APISecret: apiSecret)
         
         let intervalLength: TimeInterval = TimeInterval(60 * minutes)
-        let maxCount = (minutes / 5) * 2 // Assume 1 entry delivered every 5 minutes. Include multiplier in case mulitple glucose sources.
+        let maxCount = (minutes / 5) * 2 // Assume 1 entry delivered every 5 minutes. Include multiplier in case multiple glucose sources.
         let interval = DateInterval(start: Date().addingTimeInterval(-intervalLength), duration: intervalLength)
         client.fetchGlucose(dateInterval: interval, maxCount: maxCount) { result in
             switch result {
